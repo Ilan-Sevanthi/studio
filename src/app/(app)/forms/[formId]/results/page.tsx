@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Smile, Users, Download, Filter, CheckCircle, Percent, FileText, Image as ImageIcon } from "lucide-react";
+import { MessageSquare, Smile, Users, Download, Filter, CheckCircle, Percent, FileText as FileTextIconLucide, Image as ImageIconLucide, BarChart, PieChart as PieChartIcon } from "lucide-react"; // Renamed to avoid conflict
 import { summarizeFeedback, SummarizeFeedbackInput } from '@/ai/flows/summarize-feedback';
 import { useToast } from "@/hooks/use-toast";
 import type { FormSchema, FormResponse } from "@/types";
@@ -17,7 +17,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, BarChart, PieChart } from 'recharts';
+import { Bar, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, BarChart as RechartsBarChart, PieChart as RechartsPieChart } from 'recharts'; // Aliased recharts imports
 import { Progress } from '@/components/ui/progress';
 import { CSVLink } from 'react-csv';
 import jsPDF from 'jspdf';
@@ -56,14 +56,13 @@ const ratingChartConfig = {
 } satisfies Record<string, any>;
 
 const sentimentData = [
-  { name: 'Positive', value: 60, fill: 'hsl(var(--chart-4))' }, // Using chart-4 for positive
-  { name: 'Neutral', value: 25, fill: 'hsl(var(--chart-2))' }, // Using chart-2 for neutral
-  { name: 'Negative', value: 15, fill: 'hsl(var(--chart-5))' }, // Using chart-5 for negative (or destructive if more fitting)
+  { name: 'Positive', value: 60, fill: 'hsl(var(--chart-4))' }, 
+  { name: 'Neutral', value: 25, fill: 'hsl(var(--chart-2))' }, 
+  { name: 'Negative', value: 15, fill: 'hsl(var(--chart-5))' }, 
 ];
 
 
-export default function FormResultsPage({ params }: { params: { formId: string } }) {
-  const { formId } = params;
+export default function FormResultsPage({ params: { formId } }: { params: { formId: string } }) {
   const { toast } = useToast();
   const [form, setForm] = useState<FormSchema | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
@@ -74,6 +73,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
 
 
   useEffect(() => {
+    // In a real app, fetch form and responses based on formId
     setForm(mockForm);
     setResponses(mockResponses);
 
@@ -101,7 +101,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
         });
         return row;
       });
-      setCsvData([{headers, data: dataForCsv}]); // CSVLink expects array of {headers, data}
+      setCsvData([{headers, data: dataForCsv}]); 
     }
 
   }, [formId]);
@@ -158,7 +158,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
         const yOffset = (pdfHeight - newCanvasHeight) / 2;
 
         pdf.addImage(imgData, 'PNG', xOffset, yOffset, newCanvasWidth, newCanvasHeight);
-        pdf.save(`${form?.title || 'form'}-results-charts.pdf`);
+        pdf.save(`${form?.title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'form'}-results-charts.pdf`);
         toast({ title: "PDF Exported!", description: "Charts have been exported to PDF." });
       }).catch(err => {
         toast({ title: "PDF Export Error", description: "Could not export charts to PDF.", variant: "destructive" });
@@ -189,11 +189,17 @@ export default function FormResultsPage({ params }: { params: { formId: string }
         <div className="flex gap-2">
           <Button variant="outline"><Filter className="mr-2 h-4 w-4" /> Filter</Button>
           {csvData.length > 0 && csvData[0].data.length > 0 && (
-            <CSVLink data={csvData[0].data} headers={csvData[0].headers} filename={`${form.title || 'form'}-responses.csv`} className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
-              <FileText className="mr-2 h-4 w-4" /> Export CSV
+            <CSVLink 
+                data={csvData[0].data} 
+                headers={csvData[0].headers} 
+                filename={`${form.title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'form'}-responses.csv`} 
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+                target="_blank"
+            >
+              <FileTextIconLucide className="mr-2 h-4 w-4" /> Export CSV
             </CSVLink>
           )}
-          <Button onClick={handleExportPDF}><ImageIcon className="mr-2 h-4 w-4" /> Export Charts PDF</Button>
+          <Button onClick={handleExportPDF}><ImageIconLucide className="mr-2 h-4 w-4" /> Export Charts PDF</Button>
         </div>
       </div>
 
@@ -230,11 +236,11 @@ export default function FormResultsPage({ params }: { params: { formId: string }
         </Card>
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completion Rate</CardTitle> {/* Placeholder */}
+            <CardTitle className="text-sm font-medium">Completion Rate</CardTitle> 
             <Percent className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">85%</div> {/* Placeholder value */}
+            <div className="text-2xl font-bold">85%</div> 
             <p className="text-xs text-muted-foreground">of viewed forms completed</p>
           </CardContent>
         </Card>
@@ -315,13 +321,13 @@ export default function FormResultsPage({ params }: { params: { formId: string }
                     {ratingDistribution.length > 0 ? (
                       <ChartContainer config={ratingChartConfig} className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={ratingDistribution} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                          <RechartsBarChart data={ratingDistribution} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="rating" tickLine={false} axisLine={false} />
                             <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
                             <RechartsTooltip content={<ChartTooltipContent />} />
                             <Bar dataKey="count" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                          </BarChart>
+                          </RechartsBarChart>
                         </ResponsiveContainer>
                       </ChartContainer>
                     ) : <p className="text-muted-foreground text-center py-10">Not enough data for this chart.</p>}
@@ -334,7 +340,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
                   <CardContent>
                     <ChartContainer config={{}} className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
+                          <RechartsPieChart>
                               <RechartsTooltip content={<ChartTooltipContent nameKey="name" />} />
                               <Pie data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label >
                                   {sentimentData.map((entry, index) => (
@@ -342,7 +348,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
                                   ))}
                               </Pie>
                               <RechartsLegend content={<ChartLegendContent />} />
-                          </PieChart>
+                          </RechartsPieChart>
                       </ResponsiveContainer>
                     </ChartContainer>
                   </CardContent>
@@ -353,3 +359,5 @@ export default function FormResultsPage({ params }: { params: { formId: string }
     </div>
   );
 }
+
+    
