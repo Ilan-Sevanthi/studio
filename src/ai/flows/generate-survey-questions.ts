@@ -71,10 +71,8 @@ const generateSurveyQuestionsPrompt = ai.definePrompt({
   prompt: `You are an expert survey question generator and parser.
 Given an input text, which could be a general topic or a list of questions (potentially with options), you will generate a list of structured survey questions.
 
-Your output MUST be a JSON object that strictly adheres to the following Zod schema:
-\`\`\`json
-{{{jsonSchema outputSchema true}}}
-\`\`\`
+Your output MUST be a JSON object. This object should contain a "questions" key, which is an array of question objects.
+Each question object MUST adhere to the structure detailed in the instructions and examples below (including 'label', 'type', and 'options' where appropriate).
 
 Instructions:
 
