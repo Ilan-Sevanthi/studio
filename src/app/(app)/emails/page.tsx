@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -249,7 +250,7 @@ export default function EmailCampaignsPage() {
             <DialogContent className="sm:max-w-2xl"> {/* Wider dialog for editor */}
             <DialogHeader>
                 <DialogTitle>Edit Email Template: {currentTemplate.name}</DialogTitle>
-                <DialogDescription>Customize the subject and body of your email. Use placeholders like {{FormName}} and [Form Link Button].</DialogDescription>
+                <DialogDescription>{`Customize the subject and body of your email. Use placeholders like {{FormName}} and [Form Link Button].`}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
                 <div>
