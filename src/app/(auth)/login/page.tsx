@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,7 +12,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-// import { Label } from "@/components/ui/label"; // Label was unused
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -20,7 +20,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 const loginSchema = z.object({
@@ -31,6 +31,8 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -41,15 +43,37 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  function onSubmit(data: LoginFormValues) {
-    console.log("Email/Password Login attempt:", data);
-    // Handle actual email/password login logic here (e.g., call Firebase signInWithEmailAndPassword)
-    // For now, simulate success and redirect
-    toast({ title: "Login Attempt (Email/Pass)", description: "Implement actual login logic." });
-    // Example: router.push("/dashboard"); 
+  async function onSubmit(data: LoginFormValues) {
+    setIsLoading(true);
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
+      console.log("Email/Password Sign-In successful:", user);
+      toast({
+        title: "Login Successful",
+        description: `Welcome back, ${user.displayName || user.email}! Redirecting...`,
+      });
+      router.push("/dashboard");
+    } catch (error: any) {
+      console.error("Email/Password Sign-In error:", error);
+      let errorMessage = "An unknown error occurred.";
+      if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
+        errorMessage = "Invalid email or password. Please try again.";
+      } else if (error.code === "auth/invalid-email") {
+        errorMessage = "The email address is not valid.";
+      }
+      toast({
+        title: "Login Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
@@ -59,7 +83,7 @@ export default function LoginPage() {
         title: "Google Sign-In Successful",
         description: `Welcome, ${user.displayName || user.email}! Redirecting...`,
       });
-      router.push("/dashboard"); 
+      router.push("/dashboard");
     } catch (error: any) {
       console.error("Google Sign-In error:", error);
       toast({
@@ -67,6 +91,8 @@ export default function LoginPage() {
         description: error.message || "An unknown error occurred. Ensure Firebase is configured correctly and pop-ups are enabled.",
         variant: "destructive",
       });
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -86,7 +112,7 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="m@example.com" {...field} />
+                    <Input type="email" placeholder="m@example.com" {...field} disabled={isLoading || isGoogleLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -99,7 +125,7 @@ export default function LoginPage() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isLoading || isGoogleLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -107,8 +133,8 @@ export default function LoginPage() {
             />
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full">
-              <LogIn className="mr-2 h-4 w-4" /> Login with Email
+            <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading}>
+              {isLoading ? "Logging in..." : <><LogIn className="mr-2 h-4 w-4" /> Login with Email</>}
             </Button>
             
             <div className="relative w-full">
@@ -122,9 +148,13 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button variant="outline" type="button" className="w-full" onClick={handleGoogleSignIn}>
-              <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
-              Sign in with Google
+            <Button variant="outline" type="button" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading || isGoogleLoading}>
+              {isGoogleLoading ? "Signing in..." : 
+                <>
+                  <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+                  Sign in with Google
+                </>
+              }
             </Button>
 
             <p className="text-sm text-muted-foreground">
