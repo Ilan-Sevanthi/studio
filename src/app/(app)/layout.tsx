@@ -1,3 +1,4 @@
+
 "use client"
 
 import { SidebarNav } from "@/components/layout/sidebar-nav";
@@ -10,11 +11,33 @@ import {
   SidebarHeader,
   SidebarTrigger,
   SidebarFooter,
+  useSidebar // Import useSidebar
 } from "@/components/ui/sidebar";
-import { SheetTitle } from "@/components/ui/sheet"; // Added import
+import { SheetTitle } from "@/components/ui/sheet";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
+
+// Component to render the title, conditionally using SheetTitle
+const AppTitle = () => {
+  const sidebar = useSidebar(); // Get sidebar context
+
+  const titleClassName = "text-xl font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden";
+
+  if (sidebar.isMobile) { // If on mobile, use SheetTitle for accessibility within the sheet
+    return (
+      <SheetTitle className={titleClassName}>
+        Feedback Flow
+      </SheetTitle>
+    );
+  }
+  // On desktop, use a regular div for the title
+  return (
+    <div className={titleClassName}>
+      Feedback Flow
+    </div>
+  );
+};
+
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -23,9 +46,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarHeader className="p-4 border-b border-sidebar-border">
           <Link href="/dashboard" className="flex items-center space-x-2">
             <Sparkles className="h-7 w-7 text-sidebar-primary" />
-            <SheetTitle className="text-xl font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-              Feedback Flow
-            </SheetTitle>
+            {/* Use the new AppTitle component */}
+            <AppTitle />
           </Link>
         </SidebarHeader>
         <SidebarContent className="flex-1 p-0">
