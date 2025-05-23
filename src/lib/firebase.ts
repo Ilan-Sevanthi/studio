@@ -4,13 +4,13 @@ import { type Auth, getAuth } from 'firebase/auth';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyAeyQbkYwrsxoqWbjsjEK3-nGmvHq699ls",
-  authDomain: "aiform-8b348.firebaseapp.com",
-  projectId: "aiform-8b348",
-  storageBucket: "aiform-8b348.firebasestorage.app",
-  messagingSenderId: "228159658670",
-  appId: "1:228159658670:web:5044745a5d01b79bb5ab3f",
-  measurementId: "G-MHXEHY0150" // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  apiKey: "AIzaSyDUES39H8RLcGXKw0FTOpczvjUpptrDaRI",
+  authDomain: "feedback-flow-d3nju.firebaseapp.com",
+  projectId: "feedback-flow-d3nju",
+  storageBucket: "feedback-flow-d3nju.firebasestorage.app",
+  messagingSenderId: "1086736095911",
+  appId: "1:1086736095911:web:0f7478ee93af05eecd5982"
+  // measurementId is optional
 };
 
 // Initialize Firebase
