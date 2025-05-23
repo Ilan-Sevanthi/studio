@@ -40,12 +40,11 @@ const createFormSchema = z.object({
 type CreateFormValues = z.infer<typeof createFormSchema>;
 
 // Helper function to generate unique IDs for options if AI doesn't provide them or if they are not unique.
-// For now, we assume AI provides unique values.
 const ensureOptionValues = (options?: FormFieldOption[]): FormFieldOption[] => {
   if (!options) return [];
   return options.map(opt => ({
     label: opt.label,
-    value: opt.value || opt.label.toLowerCase().replace(/\s+/g, '-'), // Fallback value generation
+    value: opt.value || opt.label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''), // Fallback value generation
   }));
 };
 
@@ -53,7 +52,6 @@ const ensureOptionValues = (options?: FormFieldOption[]): FormFieldOption[] => {
 export default function CreateFormPage() {
   const { toast } = useToast();
   const [aiTopic, setAiTopic] = useState("");
-  const [generatedQuestions, setGeneratedQuestions] = useState<SuggestedQuestion[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const form = useForm<CreateFormValues>({
@@ -77,13 +75,23 @@ export default function CreateFormPage() {
       return;
     }
     setIsGenerating(true);
-    setGeneratedQuestions([]);
     try {
       const input: GenerateSurveyQuestionsInput = { topic: aiTopic };
       const result = await generateSurveyQuestions(input);
       if (result && result.questions && result.questions.length > 0) {
-        setGeneratedQuestions(result.questions);
-        toast({ title: "Success", description: "AI generated some questions for you!" });
+        result.questions.forEach(question => {
+          append({
+            id: `field_${Math.random().toString(36).substr(2, 9)}`,
+            label: question.label,
+            type: question.type as FormFieldType, 
+            required: false,
+            placeholder: "", 
+            options: ensureOptionValues(question.options),
+            description: "", 
+          });
+        });
+        toast({ title: "Success", description: `AI added ${result.questions.length} questions to your form.` });
+        setAiTopic(""); // Clear topic after adding
       } else {
         toast({ title: "No Questions Generated", description: "The AI couldn't generate questions for this topic, or the input was unparsable. Please try a different topic or phrasing.", variant: "default" });
       }
@@ -92,20 +100,6 @@ export default function CreateFormPage() {
       toast({ title: "Error", description: "An error occurred while generating questions.", variant: "destructive" });
     }
     setIsGenerating(false);
-  };
-
-  const addGeneratedQuestionToForm = (question: SuggestedQuestion) => {
-    append({
-      id: `field_${Math.random().toString(36).substr(2, 9)}`,
-      label: question.label,
-      // Ensure the type from AI is compatible with FormFieldType
-      type: question.type as FormFieldType, 
-      required: false, // Default to not required
-      placeholder: "", // AI could potentially suggest placeholders too
-      options: ensureOptionValues(question.options),
-      description: "", // AI could suggest descriptions
-    });
-    toast({ title: "Question Added", description: `"${question.label}" added to your form.` });
   };
   
   function onSubmit(data: CreateFormValues) {
@@ -186,8 +180,8 @@ export default function CreateFormPage() {
                   <CardDescription>Drag to reorder fields. Click a field to edit its properties.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[400px] pr-3"> {/* Added ScrollArea */}
-                  {fields.map((fieldItem, index) => ( // Renamed field to fieldItem to avoid conflict
+                  <ScrollArea className="h-[400px] pr-3">
+                  {fields.map((fieldItem, index) => (
                     <Accordion key={fieldItem.id} type="single" collapsible className="w-full mb-2 border rounded-md">
                       <AccordionItem value={`item-${index}`} className="border-b-0">
                         <AccordionTrigger className="p-3 hover:bg-muted/50 rounded-t-md">
@@ -218,11 +212,9 @@ export default function CreateFormPage() {
                                 <FormLabel>Field Type</FormLabel>
                                 <Select onValueChange={(value) => {
                                   fieldProps.onChange(value as FormFieldType);
-                                  // If type changes to something that doesn't use options, clear them
                                   if (!["select", "radio", "checkbox"].includes(value)) {
                                     form.setValue(`fields.${index}.options`, []);
                                   } else if (!form.getValues(`fields.${index}.options`)?.length) {
-                                    // If type changes to one that uses options and has no options, add a default
                                     form.setValue(`fields.${index}.options`, [{ label: "Option 1", value: "option_1" }]);
                                   }
                                 }}
@@ -255,8 +247,8 @@ export default function CreateFormPage() {
                                     control={form.control}
                                     name={`fields.${index}.options.${optIndex}.value`}
                                     render={({ field: fieldProps }) => (
-                                      <Input placeholder="Option Value (auto-generated if blank)" {...fieldProps} className="flex-1" 
-                                        onBlur={(e) => { // Auto-generate value if label exists and value is empty
+                                      <Input placeholder="Option Value (auto-if-blank)" {...fieldProps} className="flex-1" 
+                                        onBlur={(e) => { 
                                           const label = form.getValues(`fields.${index}.options.${optIndex}.label`);
                                           if (label && !e.target.value) {
                                             fieldProps.onChange(label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
@@ -329,47 +321,22 @@ export default function CreateFormPage() {
               <Card className="shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center"><Sparkles className="mr-2 h-5 w-5 text-primary" /> AI Question Generator</CardTitle>
-                  <CardDescription>Enter a topic, or paste questions, to get AI suggestions.</CardDescription>
+                  <CardDescription>Enter a topic, or paste questions, to have AI add them directly to your form.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
                     <Label htmlFor="ai-topic">Topic / Paste Questions</Label>
                     <Textarea 
                         id="ai-topic" 
-                        placeholder="e.g., Customer service experience, or paste existing questions like '1. Favorite color? (Red, Blue)'" 
+                        placeholder="e.g., Customer service experience, or paste '1. Favorite color? (Red, Blue)'" 
                         value={aiTopic} 
                         onChange={(e) => setAiTopic(e.target.value)}
                         rows={3}
                     />
                   </div>
                   <Button onClick={handleGenerateQuestions} disabled={isGenerating} className="w-full">
-                    <Wand2 className="mr-2 h-4 w-4" /> {isGenerating ? "Generating..." : "Generate / Parse Questions"}
+                    <Wand2 className="mr-2 h-4 w-4" /> {isGenerating ? "Generating..." : "Generate & Add Questions"}
                   </Button>
-                  {generatedQuestions.length > 0 && (
-                    <div className="mt-4 space-y-2 max-h-60 overflow-y-auto border p-3 rounded-md bg-muted/50">
-                      <h4 className="font-semibold text-sm text-muted-foreground">Suggested Questions:</h4>
-                      <ul className="space-y-1 text-sm">
-                        {generatedQuestions.map((q, i) => (
-                          <li key={i} className="p-2 border-b border-border last:border-b-0 hover:bg-background rounded group">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <span className="font-medium block">{q.label}</span>
-                                    <span className="text-xs text-muted-foreground">Type: {q.type}</span>
-                                    {q.options && q.options.length > 0 && (
-                                    <ul className="list-disc list-inside pl-4 mt-1 text-xs">
-                                        {q.options.map((opt, optIdx) => <li key={optIdx}>{opt.label} ({opt.value})</li>)}
-                                    </ul>
-                                    )}
-                                </div>
-                                <Button variant="ghost" size="sm" onClick={() => addGeneratedQuestionToForm(q)} className="opacity-0 group-hover:opacity-100 mt-1 shrink-0">
-                                <PlusCircle className="h-4 w-4" /> Add
-                                </Button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
 
@@ -398,7 +365,6 @@ export default function CreateFormPage() {
                       </FormItem>
                     )}
                   />
-                  {/* More settings can be added here: e.g., custom thank you message, redirect URL, etc. */}
                 </CardContent>
               </Card>
             </div>
@@ -417,4 +383,3 @@ export default function CreateFormPage() {
     </div>
   );
 }
-
