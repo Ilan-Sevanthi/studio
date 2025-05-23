@@ -11,6 +11,7 @@ import {
   SidebarTrigger,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { SheetTitle } from "@/components/ui/sheet"; // Added import
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -22,9 +23,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarHeader className="p-4 border-b border-sidebar-border">
           <Link href="/dashboard" className="flex items-center space-x-2">
             <Sparkles className="h-7 w-7 text-sidebar-primary" />
-            <h1 className="text-xl font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+            <SheetTitle className="text-xl font-bold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
               Feedback Flow
-            </h1>
+            </SheetTitle>
           </Link>
         </SidebarHeader>
         <SidebarContent className="flex-1 p-0">
