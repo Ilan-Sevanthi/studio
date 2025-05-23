@@ -4,28 +4,28 @@
 
 @layer base {
   :root {
-    --background: 60 56% 91%; /* Light Beige */
-    --foreground: 0 0% 15%; /* Darker foreground for better contrast on beige */
-    --card: 60 56% 91%; /* Light Beige */
-    --card-foreground: 0 0% 15%;
-    --popover: 60 56% 91%; /* Light Beige */
-    --popover-foreground: 0 0% 15%;
-    --primary: 0 100% 27%; /* Deep Red */
-    --primary-foreground: 0 0% 98%; /* Light color for contrast on Deep Red */
-    --secondary: 60 20% 85%; /* Lighter muted beige */
-    --secondary-foreground: 0 100% 27%; /* Deep Red */
-    --muted: 60 20% 80%; /* Muted beige */
-    --muted-foreground: 0 0% 40%; /* Muted text color */
-    --accent: 51 100% 50%; /* Soft Gold */
+    --background: 0 0% 100%; /* White */
+    --foreground: 0 0% 10%; /* Nearly Black */
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 0 0% 10%; /* Nearly Black */
+    --popover: 0 0% 100%; /* White */
+    --popover-foreground: 0 0% 10%; /* Nearly Black */
+    --primary: 0 100% 27%; /* Deep Red (original) */
+    --primary-foreground: 0 0% 98%; /* Light color for contrast on Deep Red (original) */
+    --secondary: 0 0% 96.1%; /* Light Gray (#f5f5f5) */
+    --secondary-foreground: 0 0% 9%; /* Nearly Black (#171717, for contrast on light gray) */
+    --muted: 0 0% 90.2%; /* Muted Gray (#e6e6e6) */
+    --muted-foreground: 0 0% 45.1%; /* Muted text (#737373) */
+    --accent: 51 100% 50%; /* Soft Gold (original) */
     --accent-foreground: 0 0% 10%; /* Dark color for contrast on Soft Gold */
-    --destructive: 0 70% 45%; /* A slightly less intense red for destructive actions */
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 75%; /* Slightly darker border for beige */
-    --input: 0 0% 85%; /* Input background */
-    --ring: 51 100% 50%; /* Soft Gold for ring */
-    --radius: 0.5rem;
+    --destructive: 0 70% 45%; /* A slightly less intense red for destructive actions (original) */
+    --destructive-foreground: 0 0% 98%; /* (original) */
+    --border: 0 0% 89.8%; /* Light Gray border (#e5e5e5) */
+    --input: 0 0% 93%; /* Slightly off-white input background (#ededed) */
+    --ring: 51 100% 50%; /* Soft Gold for ring (original) */
+    --radius: 0.5rem; /* (original) */
 
-    /* Sidebar specific theme */
+    /* Sidebar specific theme - UNCHANGED from original values */
     --sidebar-background: 0 0% 12%; /* Darker background for sidebar */
     --sidebar-foreground: 0 0% 85%; /* Light foreground for sidebar */
     --sidebar-primary: 51 100% 50%; /* Soft Gold for primary elements in sidebar */
@@ -46,7 +46,7 @@
     --primary: 0 100% 35%; /* Slightly brighter Deep Red for dark mode */
     --primary-foreground: 0 0% 98%;
     --secondary: 0 0% 15%;
-    --secondary-foreground: 0 100% 35%;
+    --secondary-foreground: 0 100% 35%; /* Deep Red to match primary */
     --muted: 0 0% 15%;
     --muted-foreground: 0 0% 60%;
     --accent: 51 100% 55%; /* Slightly brighter Soft Gold for dark mode */
@@ -57,7 +57,7 @@
     --input: 0 0% 20%;
     --ring: 51 100% 55%;
     
-    /* Sidebar specific theme for dark mode */
+    /* Sidebar specific theme for dark mode - UNCHANGED from original values */
     --sidebar-background: 0 0% 5%; 
     --sidebar-foreground: 0 0% 90%; 
     --sidebar-primary: 51 100% 55%; 
