@@ -56,7 +56,8 @@ const sentimentData = [
 ];
 
 
-export default function FormResultsPage({ params: { formId } }: { params: { formId: string } }) {
+export default function FormResultsPage({ params }: { params: { formId: string } }) {
+  const { formId } = params; // Destructure formId from params here
   const { toast } = useToast();
   const [form, setForm] = useState<FormSchema | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
@@ -82,7 +83,7 @@ export default function FormResultsPage({ params: { formId } }: { params: { form
     })).sort((a,b) => parseInt(a.rating.split(" ")[1]) - parseInt(b.rating.split(" ")[1]));
     setRatingDistribution(distData);
 
-  }, [formId]);
+  }, [formId]); // Use the destructured formId in the dependency array
 
   const handleSummarizeFeedback = async () => {
     if (!responses.length) {
