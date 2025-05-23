@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, PieChart, LineChart, MessageSquare, Smile, Meh, Frown, Users, Download, Filter, CheckCircle, Percent } from "lucide-react";
+import { MessageSquare, Smile, Meh, Frown, Users, Download, Filter, CheckCircle, Percent } from "lucide-react"; // Removed BarChart, PieChart, LineChart
 import { summarizeFeedback, SummarizeFeedbackInput } from '@/ai/flows/summarize-feedback';
 import { useToast } from "@/hooks/use-toast";
 import type { FormSchema, FormResponse } from "@/types";
@@ -17,7 +17,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend } from 'recharts';
+import { BarChart, PieChart, Bar, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend } from 'recharts'; // Added BarChart, PieChart
 import { Progress } from '@/components/ui/progress';
 
 // Mock Data (replace with actual data fetching)
@@ -56,13 +56,14 @@ const sentimentData = [
 ];
 
 
-export default function FormResultsPage({ params: { formId } }: { params: { formId: string } }) {
+export default function FormResultsPage({ params }: { params: { formId: string } }) {
   const { toast } = useToast();
   const [form, setForm] = useState<FormSchema | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
   const [summary, setSummary] = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [ratingDistribution, setRatingDistribution] = useState<any[]>([]);
+  const { formId } = params;
 
 
   useEffect(() => {
@@ -291,3 +292,5 @@ export default function FormResultsPage({ params: { formId } }: { params: { form
   );
 }
 
+
+    
