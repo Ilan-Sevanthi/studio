@@ -17,11 +17,12 @@ import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, Chevron
 import { generateSurveyQuestions, GenerateSurveyQuestionsInput, SuggestedQuestion } from "@/ai/flows/generate-survey-questions";
 import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import type { FormFieldSchema as AppFormFieldSchema, FormFieldType, FormFieldOption } from "@/types";
+import type { FormFieldSchema as AppFormFieldSchema, FormFieldType, FormFieldOption, FormSchema } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const formFieldSchema = z.object({
   id: z.string().default(() => `field_${Math.random().toString(36).substr(2, 9)}`),
+  surveyId: z.string().optional(), // Will be populated when form is saved
   label: z.string().min(1, "Label is required"),
   type: z.enum(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps"]),
   required: z.boolean().default(false),
@@ -43,17 +44,47 @@ type CreateFormValues = z.infer<typeof createFormSchema>;
 // Helper function to generate unique IDs for options if AI doesn't provide them or if they are not unique.
 const ensureOptionValues = (options?: FormFieldOption[]): FormFieldOption[] => {
   if (!options) return [];
-  return options.map(opt => ({
-    label: opt.label,
-    value: opt.value || opt.label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''), // Fallback value generation
-  }));
+  const valueMap = new Map<string, number>();
+  return options.map(opt => {
+    let value = opt.value || opt.label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    if (valueMap.has(value)) {
+        valueMap.set(value, (valueMap.get(value) || 0) + 1);
+        value = `${value}-${valueMap.get(value)}`;
+    } else {
+        valueMap.set(value, 0);
+    }
+    return { label: opt.label, value };
+  });
 };
+
+// Placeholder function for simulating backend call to save form
+async function saveFormToBackend(formData: CreateFormValues): Promise<FormSchema> {
+  console.log("Simulating saving form to backend:", formData);
+  // In a real app, this would call a Cloud Function or directly interact with Firestore
+  // to create a 'surveys' document and potentially 'questions' sub-collection/documents.
+  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+  
+  // For now, return a mock FormSchema object as if it was created
+  const createdForm: FormSchema = {
+    id: `form_sim_${Date.now()}`,
+    title: formData.title,
+    description: formData.description,
+    fields: formData.fields.map(f => ({...f, surveyId: `form_sim_${Date.now()}`})), // Ensure surveyId is set for fields
+    createdBy: "mock_user_id", // Replace with actual user ID
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    isAnonymous: formData.isAnonymous,
+    aiMode: formData.aiMode,
+  };
+  return createdForm;
+}
 
 
 export default function CreateFormPage() {
   const { toast } = useToast();
   const [aiTopic, setAiTopic] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSavingForm, setIsSavingForm] = useState(false);
 
   const form = useForm<CreateFormValues>({
     resolver: zodResolver(createFormSchema),
@@ -73,7 +104,7 @@ export default function CreateFormPage() {
 
   const handleGenerateQuestions = async () => {
     if (!aiTopic.trim()) {
-      toast({ title: "Error", description: "Please enter a topic for question generation.", variant: "destructive" });
+      toast({ title: "Error", description: "Please enter a topic or paste questions for AI generation.", variant: "destructive" });
       return;
     }
     setIsGenerating(true);
@@ -92,8 +123,8 @@ export default function CreateFormPage() {
             description: "", 
           });
         });
-        toast({ title: "Success", description: `AI added ${result.questions.length} questions to your form.` });
-        setAiTopic(""); // Clear topic after adding
+        toast({ title: "Success", description: `AI added ${result.questions.length} questions directly to your form.` });
+        setAiTopic(""); 
       } else {
         toast({ title: "No Questions Generated", description: "The AI couldn't generate questions for this topic, or the input was unparsable. Please try a different topic or phrasing.", variant: "default" });
       }
@@ -104,14 +135,23 @@ export default function CreateFormPage() {
     setIsGenerating(false);
   };
   
-  function onSubmit(data: CreateFormValues) {
-    console.log("Form data:", data);
-    // Here you would typically send data to your backend to save the form
-    toast({
-      title: "Form Created (Simulated)",
-      description: `Your form "${data.title}" has been successfully created with AI mode: ${data.aiMode}.`,
-    });
-    // Optionally redirect or clear form: form.reset();
+  async function onSubmit(data: CreateFormValues) {
+    setIsSavingForm(true);
+    try {
+      const savedForm = await saveFormToBackend(data);
+      console.log("Form saved (simulated):", savedForm);
+      toast({
+        title: "Form Created (Simulated)",
+        description: `Your form "${savedForm.title}" has been successfully created. In a real app, this would be saved to Firestore.`,
+      });
+      // Optionally redirect or clear form: form.reset();
+      // router.push(`/forms/${savedForm.id}/edit`); // Example redirect
+    } catch (error) {
+      console.error("Error saving form:", error);
+      toast({ title: "Save Error", description: "Could not save the form.", variant: "destructive" });
+    } finally {
+      setIsSavingForm(false);
+    }
   }
   
   const addFieldOption = (fieldIndex: number) => {
@@ -134,8 +174,8 @@ export default function CreateFormPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Create New Form</h1>
                 <p className="text-muted-foreground">Design your feedback form with various field types or get help from AI.</p>
             </div>
-            <Button type="submit" size="lg">
-                <PlusCircle className="mr-2 h-5 w-5" /> Save Form
+            <Button type="submit" size="lg" disabled={isSavingForm || isGenerating}>
+                {isSavingForm ? "Saving..." : <><PlusCircle className="mr-2 h-5 w-5" /> Save Form</>}
             </Button>
           </div>
 
@@ -179,7 +219,7 @@ export default function CreateFormPage() {
               <Card className="shadow-sm">
                 <CardHeader>
                   <CardTitle>Form Fields</CardTitle>
-                  <CardDescription>Drag to reorder fields. Click a field to edit its properties.</CardDescription>
+                  <CardDescription>Drag to reorder fields (TODO). Click a field to edit its properties.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[400px] pr-3">
@@ -311,7 +351,7 @@ export default function CreateFormPage() {
                     </Accordion>
                   ))}
                   </ScrollArea>
-                  <Button type="button" variant="outline" onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "", type: "text", required: false, options: [] })} className="w-full mt-4">
+                  <Button type="button" variant="outline" onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "", type: "text", required: false, options: [] })} className="w-full mt-4" disabled={isSavingForm || isGenerating}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add New Field
                   </Button>
                 </CardContent>
@@ -334,9 +374,10 @@ export default function CreateFormPage() {
                         value={aiTopic} 
                         onChange={(e) => setAiTopic(e.target.value)}
                         rows={3}
+                        disabled={isGenerating || isSavingForm}
                     />
                   </div>
-                  <Button onClick={handleGenerateQuestions} disabled={isGenerating} className="w-full">
+                  <Button onClick={handleGenerateQuestions} disabled={isGenerating || isSavingForm} className="w-full">
                     <Wand2 className="mr-2 h-4 w-4" /> {isGenerating ? "Generating..." : "Generate & Add Questions"}
                   </Button>
                 </CardContent>
@@ -362,6 +403,7 @@ export default function CreateFormPage() {
                           <Switch
                             checked={field.value}
                             onCheckedChange={field.onChange}
+                            disabled={isSavingForm || isGenerating}
                           />
                         </FormControl>
                       </FormItem>
@@ -379,14 +421,14 @@ export default function CreateFormPage() {
                           </FormDescription>
                         </div>
                         <FormControl>
-                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                           <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSavingForm || isGenerating}>
                             <SelectTrigger className="w-[180px]">
                               <SelectValue placeholder="Select AI Mode" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
                               <SelectItem value="assisted_creation">Assisted Creation</SelectItem>
-                              <SelectItem value="dynamic">Dynamic Follow-ups</SelectItem>
+                              <SelectItem value="dynamic">Dynamic Follow-ups (Future)</SelectItem>
                             </SelectContent>
                           </Select>
                         </FormControl>
@@ -399,11 +441,11 @@ export default function CreateFormPage() {
           </div>
 
           <div className="flex justify-end space-x-2 mt-8">
-            <Button variant="outline" type="button" onClick={() => form.reset()}>
+            <Button variant="outline" type="button" onClick={() => form.reset()} disabled={isSavingForm || isGenerating}>
               Reset Form
             </Button>
-            <Button type="submit" size="lg">
-              <PlusCircle className="mr-2 h-5 w-5" /> Save Form
+            <Button type="submit" size="lg" disabled={isSavingForm || isGenerating}>
+              {isSavingForm ? "Saving..." : <><PlusCircle className="mr-2 h-5 w-5" /> Save Form</>}
             </Button>
           </div>
         </form>
