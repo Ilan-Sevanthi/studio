@@ -145,8 +145,8 @@ export default function EmailCampaignsPage() {
                       <TableCell>
                          <span className={`px-2 py-1 text-xs rounded-full ${
                             campaign.status === 'Sent' ? 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--status-active-text))]' : 
-                            campaign.status === 'Scheduled' ? 'bg-[hsl(var(--chart-3))]/20 text-[hsl(var(--status-scheduled-text))]' :
-                            'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]'
+                            campaign.status === 'Scheduled' ? 'bg-[hsl(var(--chart-1))]/20 text-[hsl(var(--status-scheduled-text))]' : // Using chart-1 (Primary Blue) for Scheduled
+                            'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]' // Using chart-2 (Teal/Accent) for Draft
                           }`}>
                             {campaign.status}
                           </span>

@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, FileText, Users, MessageSquare, AlertTriangle, CheckCircle2, PlusCircle, Sparkles } from "lucide-react";
+import { BarChart3, FileText, Users, MessageSquare, CheckCircle2, PlusCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -85,7 +85,7 @@ export default function DashboardPage() {
                       <span className={`px-2 py-1 text-xs rounded-full ${
                         form.status === 'Active' ? 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--status-active-text))]' : 
                         form.status === 'Closed' ? 'bg-[hsl(var(--destructive))]/20 text-[hsl(var(--status-closed-text))]' :
-                        'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]' // Default to Draft style for 'Draft' or other statuses
+                        'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]' // Using chart-2 (Teal/Accent) for Draft
                       }`}>
                         {form.status}
                       </span>

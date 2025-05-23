@@ -87,7 +87,7 @@ export default function FormsPage() {
                       <span className={`px-2 py-1 text-xs rounded-full ${
                         form.status === 'Active' ? 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--status-active-text))]' : 
                         form.status === 'Closed' ? 'bg-[hsl(var(--destructive))]/20 text-[hsl(var(--status-closed-text))]' :
-                        form.status === 'Draft' ? 'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]' :
+                        form.status === 'Draft' ? 'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]' : // Using chart-2 (Teal/Accent) for Draft
                         'bg-muted text-muted-foreground' // Default/fallback style
                       }`}>
                         {form.status || 'N/A'}
