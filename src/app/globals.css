@@ -5,99 +5,98 @@
 
 @layer base {
   :root {
-    /* Royal UI Theme - Light Mode */
-    --background: 60 56% 91%; /* Light Beige (#F5F5DC) */
-    --foreground: 0 0% 15%; /* Dark Gray/Brown for text on beige */
-    --card: 0 0% 100%; /* White for cards, for contrast on beige */
-    --card-foreground: 0 0% 15%;
+    /* Royal Blue-Gold Theme - Light Mode */
+    --background: 220 20% 95%; /* Very Light Cool Gray */
+    --foreground: 220 20% 10%; /* Dark Blue-Gray for text */
+    --card: 0 0% 100%; /* White for cards */
+    --card-foreground: 220 20% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 15%;
-    --primary: 0 100% 27%; /* Deep Red (#8B0000) */
+    --popover-foreground: 220 20% 10%;
+    --primary: 220 70% 50%; /* Royal Blue */
     --primary-foreground: 0 0% 100%; /* White */
-    --secondary: 0 80% 90%; /* Lighter shade of red for secondary elements */
-    --secondary-foreground: 0 100% 27%; /* Deep Red */
-    --muted: 60 30% 85%; /* Muted Beige */
-    --muted-foreground: 60 20% 45%; /* Darker Muted Beige */
-    --accent: 51 100% 50%; /* Soft Gold (#FFD700) */
-    --accent-foreground: 0 0% 10%; /* Dark text for gold accent */
+    --secondary: 215 50% 85%; /* Lighter shade of blue */
+    --secondary-foreground: 220 70% 30%; /* Darker Royal Blue */
+    --muted: 220 20% 90%; /* Muted Light Cool Gray */
+    --muted-foreground: 220 15% 45%; /* Darker Muted Cool Gray */
+    --accent: 45 100% 50%; /* Gold */
+    --accent-foreground: 45 100% 15%; /* Dark brown/black for gold accent */
     --destructive: 0 75% 55%; /* Standard Red for destructive actions */
     --destructive-foreground: 0 0% 100%;
-    --border: 60 30% 80%; /* Beige-toned border */
+    --border: 220 20% 85%; /* Cool Gray border */
     --input: 0 0% 100%; /* White input fields */
-    --ring: 51 100% 50%; /* Soft Gold for rings */
+    --ring: 220 70% 50%; /* Royal Blue for rings */
     --radius: 0.5rem;
 
-    /* Chart Colors - Light Theme */
-    --chart-1: 0 100% 35%;  /* Slightly lighter Deep Red */
-    --chart-2: 51 90% 60%;  /* Slightly desaturated Soft Gold */
-    --chart-3: 25 80% 55%;  /* An earthy orange */
-    --chart-4: 90 50% 45%;  /* A muted green for positive sentiment */
-    --chart-5: 210 70% 50%; /* A contrasting blue */
+    /* Chart Colors - Light Theme (Blue/Gold Palette) */
+    --chart-1: 220 70% 55%;  /* Primary Blue */
+    --chart-2: 45 90% 60%;   /* Accent Gold */
+    --chart-3: 190 60% 50%;  /* Teal/Cyan for contrast */
+    --chart-4: 120 50% 45%;  /* A muted green for positive sentiment */
+    --chart-5: 280 60% 60%;  /* A contrasting purple */
 
-    /* Status Text Colors - Light Theme (for readability on semi-transparent backgrounds) */
-    --status-active-text: 90 60% 25%;   /* Darker Green for text on light active bg */
+    /* Status Text Colors - Light Theme */
+    --status-active-text: 120 60% 25%;   /* Darker Green for text on light active bg */
     --status-closed-text: 0 75% 30%;    /* Darker Red for text on light closed bg */
-    --status-draft-text: 51 70% 30%;     /* Darker Gold/Brown for text on light draft bg */
-    --status-scheduled-text: 210 70% 30%;/* Darker Blue for text on light scheduled bg */
+    --status-draft-text: 45 70% 30%;     /* Darker Gold/Brown for text on light draft bg */
+    --status-scheduled-text: 220 70% 30%;/* Darker Blue for text on light scheduled bg */
     --status-pending-text: 30 70% 30%; /* Darker Orange for text on light pending bg */
 
-
     /* Sidebar specific theme */
-    --sidebar-background: 60 40% 88%; /* Slightly darker beige for sidebar */
-    --sidebar-foreground: 0 0% 15%;
-    --sidebar-primary: 0 100% 27%; /* Deep Red */
+    --sidebar-background: 220 25% 92%; /* Slightly darker/muted blue-gray for sidebar */
+    --sidebar-foreground: 220 20% 15%;
+    --sidebar-primary: 220 70% 50%; /* Royal Blue */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 60 56% 93%; /* Lighter beige for hover */
-    --sidebar-accent-foreground: 0 100% 27%; /* Deep Red for text on accent */
-    --sidebar-border: 60 30% 75%;
-    --sidebar-ring: 51 100% 50%;
+    --sidebar-accent: 220 20% 96%; /* Lighter blue-gray for hover */
+    --sidebar-accent-foreground: 220 70% 50%; /* Royal Blue for text on accent */
+    --sidebar-border: 220 20% 80%;
+    --sidebar-ring: 45 100% 50%; /* Gold for sidebar ring */
   }
 
   .dark {
-    /* Royal UI Theme - Dark Mode */
-    --background: 0 0% 8%; /* Very Dark Gray, almost black */
-    --foreground: 0 0% 90%; /* Light Gray for text */
-    --card: 0 0% 12%; /* Slightly lighter dark gray for cards */
-    --card-foreground: 0 0% 90%;
-    --popover: 0 0% 12%;
-    --popover-foreground: 0 0% 90%;
-    --primary: 0 80% 55%; /* Brighter Deep Red for dark mode */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 0 70% 30%; /* Darker shade of red */
-    --secondary-foreground: 0 0% 90%;
-    --muted: 0 0% 20%; /* Muted Dark Gray */
-    --muted-foreground: 0 0% 65%;
-    --accent: 51 90% 60%; /* Brighter Soft Gold */
-    --accent-foreground: 0 0% 10%;
-    --destructive: 0 70% 60%; /* Brighter Red for destructive actions */
+    /* Royal Blue-Gold Theme - Dark Mode */
+    --background: 220 20% 8%; /* Very Dark Blue-Gray */
+    --foreground: 220 15% 90%; /* Light Gray/Blue for text */
+    --card: 220 20% 12%; /* Slightly lighter dark blue-gray for cards */
+    --card-foreground: 220 15% 90%;
+    --popover: 220 20% 12%;
+    --popover-foreground: 220 15% 90%;
+    --primary: 215 80% 65%; /* Brighter Royal Blue for dark mode */
+    --primary-foreground: 220 20% 5%;
+    --secondary: 220 30% 25%; /* Darker shade of blue */
+    --secondary-foreground: 220 15% 80%;
+    --muted: 220 15% 20%; /* Muted Dark Blue-Gray */
+    --muted-foreground: 220 10% 65%;
+    --accent: 45 80% 60%; /* Brighter Gold */
+    --accent-foreground: 45 100% 10%; /* Very dark for gold accent text */
+    --destructive: 0 70% 60%; /* Brighter Red */
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 25%; /* Dark Gray Border */
-    --input: 0 0% 15%; /* Dark Input */
-    --ring: 51 90% 60%; /* Brighter Soft Gold for rings */
+    --border: 220 15% 25%; /* Dark Blue-Gray Border */
+    --input: 220 15% 15%; /* Dark Input */
+    --ring: 215 80% 65%; /* Brighter Royal Blue for rings */
 
     /* Chart Colors - Dark Theme */
-    --chart-1: 0 80% 60%;
-    --chart-2: 51 80% 70%;
-    --chart-3: 25 70% 65%;
-    --chart-4: 90 45% 55%;
-    --chart-5: 210 60% 60%;
+    --chart-1: 215 70% 60%;
+    --chart-2: 45 70% 65%;
+    --chart-3: 190 50% 55%;
+    --chart-4: 120 40% 55%;
+    --chart-5: 280 50% 65%;
 
     /* Status Text Colors - Dark Theme */
-    --status-active-text: 90 50% 75%;   /* Lighter Green */
+    --status-active-text: 120 50% 75%;   /* Lighter Green */
     --status-closed-text: 0 70% 80%;     /* Lighter Red */
-    --status-draft-text: 51 80% 75%;      /* Lighter Gold */
-    --status-scheduled-text: 210 60% 80%; /* Lighter Blue */
+    --status-draft-text: 45 80% 75%;      /* Lighter Gold */
+    --status-scheduled-text: 215 70% 75%; /* Lighter Blue */
     --status-pending-text: 30 80% 75%; /* Lighter Orange */
     
     /* Sidebar specific theme for dark mode */
-    --sidebar-background: 0 0% 5%; 
-    --sidebar-foreground: 0 0% 85%; 
-    --sidebar-primary: 0 80% 55%; 
-    --sidebar-primary-foreground: 0 0% 100%; 
-    --sidebar-accent: 0 0% 15%; 
-    --sidebar-accent-foreground: 0 80% 55%;
-    --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 51 90% 60%;
+    --sidebar-background: 220 20% 10%; 
+    --sidebar-foreground: 220 15% 85%; 
+    --sidebar-primary: 215 80% 65%; 
+    --sidebar-primary-foreground: 220 20% 5%; 
+    --sidebar-accent: 220 15% 20%; 
+    --sidebar-accent-foreground: 215 80% 65%;
+    --sidebar-border: 220 15% 22%;
+    --sidebar-ring: 45 80% 60%;
   }
 }
 

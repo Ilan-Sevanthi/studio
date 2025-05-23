@@ -22,19 +22,20 @@ import type { AppUser, UserRole, Invite, InviteStatus } from "@/types";
 const mockCurrentUserId = "user_owner_123"; // Assume this is the ID of the currently logged-in user
 
 const mockTeamMembers: AppUser[] = [
+  { id: "user_owner_123", name: "Sofia Davis (Owner)", email: "sofia.davis@example.com", role: "Owner", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "SD", joinedDate: "2023-01-10" },
   { id: "user1", name: "Alex Johnson", email: "alex.j@example.com", role: "Admin", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "AJ", joinedDate: "2023-01-15" },
   { id: "user2", name: "Maria Garcia", email: "maria.g@example.com", role: "Editor", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "MG", joinedDate: "2023-03-22" },
   { id: "user3", name: "David Lee", email: "david.l@example.com", role: "Viewer", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "DL", joinedDate: "2023-05-10" },
 ];
 
 const mockPendingInvites: Invite[] = [
-  { id: "invite1", email: "new.user@example.com", role: "Editor", status: "pending", teamId: "team1", invitedBy: mockCurrentUserId, createdAt: new Date().toISOString() },
-  { id: "invite2", email: "another.dev@example.com", role: "Viewer", status: "pending", teamId: "team1", invitedBy: mockCurrentUserId, createdAt: new Date(Date.now() - 86400000 * 2).toISOString() }, // 2 days ago
+  { id: "invite1", inviteeEmail: "new.user@example.com", role: "Editor", status: "pending", teamId: "team1", inviterId: mockCurrentUserId, createdAt: new Date().toISOString() },
+  { id: "invite2", inviteeEmail: "another.dev@example.com", role: "Viewer", status: "pending", teamId: "team1", inviterId: mockCurrentUserId, createdAt: new Date(Date.now() - 86400000 * 2).toISOString() }, // 2 days ago
 ];
 
 const inviteMemberSchema = z.object({
   email: z.string().email("Invalid email address."),
-  role: z.enum(["Admin", "Editor", "Viewer"] as [UserRole, ...UserRole[]], { required_error: "Role is required." }),
+  role: z.enum(["Admin", "Editor", "Viewer"] as [UserRole, ...UserRole[]]).refine(val => val !== "Owner", { message: "Cannot invite as Owner."}),
 });
 
 type InviteMemberFormValues = z.infer<typeof inviteMemberSchema>;
@@ -54,21 +55,19 @@ export default function TeamSettingsPage() {
   });
 
   function onInviteSubmit(data: InviteMemberFormValues) {
-    // Simulate sending an invite
-    // In a real app, this would call a Cloud Function or API endpoint
+    // Simulate sending an invite - In a real app, this would call `/sendInvite` Cloud Function
     const newInvite: Invite = {
       id: `invite_${Date.now()}`,
-      email: data.email,
+      inviteeEmail: data.email,
       role: data.role,
       status: "pending",
       teamId: "team1", // Assuming a single team context for now
-      invitedBy: mockCurrentUserId, // UID of current user
+      inviterId: mockCurrentUserId, 
       createdAt: new Date().toISOString(),
     };
     
-    // Check for existing active members or pending invites with the same email
     const emailExists = teamMembers.some(member => member.email === data.email) || 
-                        pendingInvites.some(invite => invite.email === data.email && invite.status === "pending");
+                        pendingInvites.some(invite => invite.inviteeEmail === data.email && invite.status === "pending");
 
     if (emailExists) {
       toast({
@@ -79,53 +78,42 @@ export default function TeamSettingsPage() {
       return;
     }
     
-    // Limit to 3 team members (excluding owner, who isn't in this mock list)
-    // This logic would be more robust on the backend
-    if (teamMembers.length >= 3) {
+    // Owner is 1, allow up to 3 additional members.
+    if (teamMembers.filter(m => m.role !== "Owner").length >= 3) {
         toast({
             title: "Team Limit Reached",
-            description: "You can invite up to 3 team members. Please manage existing members to add new ones.",
+            description: "You can invite up to 3 additional team members (excluding the Owner). Please manage existing members to add new ones.",
             variant: "destructive",
         });
         return;
     }
 
-
     setPendingInvites(prev => [newInvite, ...prev]);
     toast({
-      title: "Invitation Sent",
+      title: "Invitation Sent (Simulated)",
       description: `${data.email} has been invited as a ${data.role}.`,
-      action: <Button variant="ghost" size="sm" onClick={() => console.log("Undo invite", newInvite.id)}>Undo</Button> // Placeholder for undo
     });
     setIsInviteDialogOpen(false);
     form.reset();
   }
   
   const removeMember = (memberId: string) => {
-    // Simulate removing a member
+    if (memberId === mockCurrentUserId) {
+      toast({ title: "Action Denied", description: "Owner cannot be removed.", variant: "destructive"});
+      return;
+    }
     setTeamMembers(prev => prev.filter(member => member.id !== memberId));
-    toast({
-      title: "Member Removed",
-      description: "The team member has been removed.",
-    });
+    toast({ title: "Member Removed (Simulated)", description: "The team member has been removed." });
   };
 
   const cancelInvite = (inviteId: string) => {
-    // Simulate cancelling an invite
     setPendingInvites(prev => prev.filter(invite => invite.id !== inviteId));
-    toast({
-      title: "Invitation Cancelled",
-      description: "The pending invitation has been cancelled.",
-    });
+    toast({ title: "Invitation Cancelled (Simulated)", description: "The pending invitation has been cancelled." });
   };
 
   const resendInvite = (inviteId: string) => {
     const invite = pendingInvites.find(inv => inv.id === inviteId);
-    // Simulate resending an invite
-    toast({
-      title: "Invitation Resent",
-      description: `Invitation to ${invite?.email} has been resent.`,
-    });
+    toast({ title: "Invitation Resent (Simulated)", description: `Invitation to ${invite?.inviteeEmail} has been resent.` });
   }
 
   return (
@@ -133,7 +121,7 @@ export default function TeamSettingsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Team Members</h1>
-          <p className="text-muted-foreground">Manage who has access and invite new members to your workspace. You can invite up to 3 team members.</p>
+          <p className="text-muted-foreground">Manage who has access. Owners can invite up to 3 additional team members.</p>
         </div>
         <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
           <DialogTrigger asChild>
@@ -176,7 +164,7 @@ export default function TeamSettingsPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Admin">Admin (Full Access)</SelectItem>
+                          <SelectItem value="Admin">Admin (Full Access, except owner actions)</SelectItem>
                           <SelectItem value="Editor">Editor (Create & Manage Forms)</SelectItem>
                           <SelectItem value="Viewer">Viewer (View Results Only)</SelectItem>
                         </SelectContent>
@@ -224,15 +212,28 @@ export default function TeamSettingsPage() {
                     </div>
                   </TableCell>
                   <TableCell>{member.email}</TableCell>
-                  <TableCell>{member.role}</TableCell>
+                  <TableCell>
+                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        member.role === 'Owner' ? 'bg-primary/20 text-primary-foreground' :
+                        member.role === 'Admin' ? 'bg-accent/20 text-accent-foreground' :
+                        member.role === 'Editor' ? 'bg-secondary/20 text-secondary-foreground' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {member.role}
+                      </span>
+                  </TableCell>
                   <TableCell>{member.joinedDate ? new Date(member.joinedDate).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => console.log("Edit role for:", member.id)} title="Edit role (TODO)">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => removeMember(member.id)} title="Remove member" className="text-destructive hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {member.role !== "Owner" && (
+                      <>
+                        <Button variant="ghost" size="icon" onClick={() => console.log("Edit role for:", member.id)} title="Edit role (TODO)">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => removeMember(member.id)} title="Remove member" className="text-destructive hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -251,7 +252,7 @@ export default function TeamSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Pending Invitations ({pendingInvites.filter(inv => inv.status === 'pending').length})</CardTitle>
-          <CardDescription>These users have been invited but haven't joined yet.</CardDescription>
+          <CardDescription>These users have been invited but haven't joined yet. This functionality would typically use the `/acceptInvite` Cloud Function.</CardDescription>
         </CardHeader>
         <CardContent>
            <Table>
@@ -267,7 +268,7 @@ export default function TeamSettingsPage() {
             <TableBody>
               {pendingInvites.filter(invite => invite.status === 'pending').map((invite) => (
                 <TableRow key={invite.id}>
-                  <TableCell className="font-medium">{invite.email}</TableCell>
+                  <TableCell className="font-medium">{invite.inviteeEmail}</TableCell>
                   <TableCell>{invite.role}</TableCell>
                   <TableCell>{new Date(invite.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>

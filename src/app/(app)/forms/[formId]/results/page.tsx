@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Smile, Meh, Frown, Users, Download, Filter, CheckCircle, Percent } from "lucide-react";
+import { MessageSquare, Smile, Users, Download, Filter, CheckCircle, Percent, FileText, Image as ImageIcon } from "lucide-react";
 import { summarizeFeedback, SummarizeFeedbackInput } from '@/ai/flows/summarize-feedback';
 import { useToast } from "@/hooks/use-toast";
 import type { FormSchema, FormResponse } from "@/types";
@@ -17,8 +17,12 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { BarChart, PieChart, Bar, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend } from 'recharts';
+import { Bar, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, BarChart, PieChart } from 'recharts';
 import { Progress } from '@/components/ui/progress';
+import { CSVLink } from 'react-csv';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+
 
 // Mock Data (replace with actual data fetching)
 const mockForm: FormSchema = {
@@ -26,22 +30,24 @@ const mockForm: FormSchema = {
   title: "Customer Satisfaction Survey Q3",
   description: "Feedback on our services during the third quarter.",
   fields: [
-    { id: "q1", label: "Overall satisfaction with our service?", type: "rating", required: true },
-    { id: "q2", label: "How likely are you to recommend us?", type: "rating", required: true },
-    { id: "q3", label: "What did you like most?", type: "textarea" },
-    { id: "q4", label: "How can we improve?", type: "textarea" },
+    { surveyId: "form_123", id: "q1", label: "Overall satisfaction with our service?", type: "rating", required: true },
+    { surveyId: "form_123", id: "q2", label: "How likely are you to recommend us?", type: "rating", required: true }, // Assuming NPS or similar scaled rating
+    { surveyId: "form_123", id: "q3", label: "What did you like most?", type: "textarea" },
+    { surveyId: "form_123", id: "q4", label: "How can we improve?", type: "textarea" },
   ],
+  createdBy: "user_abc",
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   isAnonymous: false,
+  aiMode: "assisted_creation"
 };
 
 const mockResponses: FormResponse[] = [
-  { id: "resp1", formId: "form_123", submittedAt: new Date().toISOString(), answers: { q1: 5, q2: 9, q3: "Great support!", q4: "Faster loading times." } },
-  { id: "resp2", formId: "form_123", submittedAt: new Date().toISOString(), answers: { q1: 4, q2: 7, q3: "Easy to use.", q4: "More features." } },
-  { id: "resp3", formId: "form_123", submittedAt: new Date().toISOString(), answers: { q1: 3, q2: 5, q3: "The pricing is fair.", q4: "Customer service response time was slow." } },
-  { id: "resp4", formId: "form_123", submittedAt: new Date().toISOString(), answers: { q1: 5, q2: 10, q3: "Everything was perfect!", q4: "Nothing, it's great!" } },
-  { id: "resp5", formId: "form_123", submittedAt: new Date().toISOString(), answers: { q1: 2, q2: 3, q3: "The UI is a bit clunky.", q4: "Better onboarding." } },
+  { id: "resp1", formId: "form_123", timestamp: new Date().toISOString(), answers: { q1: 5, q2: 9, q3: "Great support!", q4: "Faster loading times." } },
+  { id: "resp2", formId: "form_123", timestamp: new Date().toISOString(), answers: { q1: 4, q2: 7, q3: "Easy to use.", q4: "More features." } },
+  { id: "resp3", formId: "form_123", timestamp: new Date().toISOString(), answers: { q1: 3, q2: 5, q3: "The pricing is fair.", q4: "Customer service response time was slow." } },
+  { id: "resp4", formId: "form_123", timestamp: new Date().toISOString(), answers: { q1: 5, q2: 10, q3: "Everything was perfect!", q4: "Nothing, it's great!" } },
+  { id: "resp5", formId: "form_123", timestamp: new Date().toISOString(), answers: { q1: 2, q2: 3, q3: "The UI is a bit clunky.", q4: "Better onboarding." } },
 ];
 
 const ratingChartConfig = {
@@ -50,28 +56,27 @@ const ratingChartConfig = {
 } satisfies Record<string, any>;
 
 const sentimentData = [
-  { name: 'Positive', value: 60, fill: 'hsl(var(--chart-1))' },
-  { name: 'Neutral', value: 25, fill: 'hsl(var(--chart-2))' },
-  { name: 'Negative', value: 15, fill: 'hsl(var(--chart-3))' },
+  { name: 'Positive', value: 60, fill: 'hsl(var(--chart-4))' }, // Using chart-4 for positive
+  { name: 'Neutral', value: 25, fill: 'hsl(var(--chart-2))' }, // Using chart-2 for neutral
+  { name: 'Negative', value: 15, fill: 'hsl(var(--chart-5))' }, // Using chart-5 for negative (or destructive if more fitting)
 ];
 
 
 export default function FormResultsPage({ params }: { params: { formId: string } }) {
-  const { formId } = params; // Destructure formId from params here
+  const { formId } = params;
   const { toast } = useToast();
   const [form, setForm] = useState<FormSchema | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
   const [summary, setSummary] = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [ratingDistribution, setRatingDistribution] = useState<any[]>([]);
+  const [csvData, setCsvData] = useState<any[]>([]);
 
 
   useEffect(() => {
-    // Simulate fetching data
     setForm(mockForm);
     setResponses(mockResponses);
 
-    // Calculate rating distribution for charts
     const satisfactionCounts: Record<number, number> = {};
     mockResponses.forEach(r => {
       const rating = r.answers.q1 as number;
@@ -83,7 +88,23 @@ export default function FormResultsPage({ params }: { params: { formId: string }
     })).sort((a,b) => parseInt(a.rating.split(" ")[1]) - parseInt(b.rating.split(" ")[1]));
     setRatingDistribution(distData);
 
-  }, [formId]); // Use the destructured formId in the dependency array
+    // Prepare CSV data
+    if (mockForm && mockResponses.length > 0) {
+      const headers = mockForm.fields.map(field => ({ label: field.label, key: field.id }));
+      headers.unshift({ label: "Response ID", key: "id" });
+      headers.push({ label: "Submitted At", key: "timestamp" });
+
+      const dataForCsv = mockResponses.map(res => {
+        const row: any = { id: res.id.substring(0,8), timestamp: new Date(res.timestamp).toLocaleString() };
+        mockForm.fields.forEach(field => {
+          row[field.id] = res.answers[field.id] ?? 'N/A';
+        });
+        return row;
+      });
+      setCsvData([{headers, data: dataForCsv}]); // CSVLink expects array of {headers, data}
+    }
+
+  }, [formId]);
 
   const handleSummarizeFeedback = async () => {
     if (!responses.length) {
@@ -114,6 +135,40 @@ export default function FormResultsPage({ params }: { params: { formId: string }
     }
     setIsSummarizing(false);
   };
+  
+  const handleExportPDF = () => {
+    const chartsElement = document.getElementById('charts-section-to-export');
+    if (chartsElement) {
+      toast({ title: "Generating PDF...", description: "Please wait while the PDF is being prepared." });
+      html2canvas(chartsElement, { scale: 2 }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const ratio = canvasWidth / canvasHeight;
+        let newCanvasWidth = pdfWidth;
+        let newCanvasHeight = newCanvasWidth / ratio;
+        if (newCanvasHeight > pdfHeight) {
+            newCanvasHeight = pdfHeight;
+            newCanvasWidth = newCanvasHeight * ratio;
+        }
+        const xOffset = (pdfWidth - newCanvasWidth) / 2;
+        const yOffset = (pdfHeight - newCanvasHeight) / 2;
+
+        pdf.addImage(imgData, 'PNG', xOffset, yOffset, newCanvasWidth, newCanvasHeight);
+        pdf.save(`${form?.title || 'form'}-results-charts.pdf`);
+        toast({ title: "PDF Exported!", description: "Charts have been exported to PDF." });
+      }).catch(err => {
+        toast({ title: "PDF Export Error", description: "Could not export charts to PDF.", variant: "destructive" });
+        console.error("PDF Export Error:", err);
+      });
+    } else {
+      toast({ title: "Export Error", description: "Could not find charts section to export.", variant: "destructive" });
+    }
+  };
+
 
   if (!form) {
     return <div className="flex items-center justify-center h-full"><p>Loading form data...</p></div>;
@@ -133,7 +188,12 @@ export default function FormResultsPage({ params }: { params: { formId: string }
         </div>
         <div className="flex gap-2">
           <Button variant="outline"><Filter className="mr-2 h-4 w-4" /> Filter</Button>
-          <Button><Download className="mr-2 h-4 w-4" /> Export Data</Button>
+          {csvData.length > 0 && csvData[0].data.length > 0 && (
+            <CSVLink data={csvData[0].data} headers={csvData[0].headers} filename={`${form.title || 'form'}-responses.csv`} className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
+              <FileText className="mr-2 h-4 w-4" /> Export CSV
+            </CSVLink>
+          )}
+          <Button onClick={handleExportPDF}><ImageIcon className="mr-2 h-4 w-4" /> Export Charts PDF</Button>
         </div>
       </div>
 
@@ -236,7 +296,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
                           {String(response.answers[field.id] ?? 'N/A')}
                         </TableCell>
                       ))}
-                      <TableCell>{new Date(response.submittedAt).toLocaleString()}</TableCell>
+                      <TableCell>{new Date(response.timestamp).toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -245,47 +305,49 @@ export default function FormResultsPage({ params }: { params: { formId: string }
           </Card>
         </TabsContent>
 
-        <TabsContent value="charts" className="mt-6 grid gap-6 md:grid-cols-2">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Overall Satisfaction Distribution (Q1)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {ratingDistribution.length > 0 ? (
-                    <ChartContainer config={ratingChartConfig} className="h-[300px] w-full">
+        <TabsContent value="charts" className="mt-6" id="charts-section-to-export">
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                  <CardHeader>
+                      <CardTitle>Overall Satisfaction Distribution (Q1)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {ratingDistribution.length > 0 ? (
+                      <ChartContainer config={ratingChartConfig} className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={ratingDistribution} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="rating" tickLine={false} axisLine={false} />
+                            <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                            <RechartsTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </ChartContainer>
+                    ) : <p className="text-muted-foreground text-center py-10">Not enough data for this chart.</p>}
+                  </CardContent>
+              </Card>
+              <Card>
+                  <CardHeader>
+                      <CardTitle>Sentiment Analysis (Mock)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ChartContainer config={{}} className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={ratingDistribution} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="rating" tickLine={false} axisLine={false} />
-                          <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                          <RechartsTooltip content={<ChartTooltipContent />} />
-                          <Bar dataKey="count" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                        </BarChart>
+                          <PieChart>
+                              <RechartsTooltip content={<ChartTooltipContent nameKey="name" />} />
+                              <Pie data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label >
+                                  {sentimentData.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                                  ))}
+                              </Pie>
+                              <RechartsLegend content={<ChartLegendContent />} />
+                          </PieChart>
                       </ResponsiveContainer>
                     </ChartContainer>
-                  ) : <p className="text-muted-foreground text-center py-10">Not enough data for this chart.</p>}
-                </CardContent>
-            </Card>
-             <Card>
-                <CardHeader>
-                    <CardTitle>Sentiment Analysis (Mock)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer config={{}} className="h-[300px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <RechartsTooltip content={<ChartTooltipContent nameKey="name" />} />
-                            <Pie data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label >
-                                {sentimentData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                                ))}
-                            </Pie>
-                            <RechartsLegend content={<ChartLegendContent />} />
-                        </PieChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
-                </CardContent>
-            </Card>
+                  </CardContent>
+              </Card>
+            </div>
         </TabsContent>
       </Tabs>
     </div>

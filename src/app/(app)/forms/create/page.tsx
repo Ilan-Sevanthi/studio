@@ -13,7 +13,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
-import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
+import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain } from "lucide-react";
 import { generateSurveyQuestions, GenerateSurveyQuestionsInput, SuggestedQuestion } from "@/ai/flows/generate-survey-questions";
 import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -23,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const formFieldSchema = z.object({
   id: z.string().default(() => `field_${Math.random().toString(36).substr(2, 9)}`),
   label: z.string().min(1, "Label is required"),
-  type: z.enum(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number"]),
+  type: z.enum(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps"]),
   required: z.boolean().default(false),
   placeholder: z.string().optional(),
   options: z.array(z.object({ label: z.string().min(1), value: z.string().min(1) })).optional(),
@@ -35,6 +35,7 @@ const createFormSchema = z.object({
   description: z.string().optional(),
   fields: z.array(formFieldSchema).min(1, "Add at least one field"),
   isAnonymous: z.boolean().default(false),
+  aiMode: z.enum(["dynamic", "assisted_creation", "none"]).default("none"),
 });
 
 type CreateFormValues = z.infer<typeof createFormSchema>;
@@ -61,6 +62,7 @@ export default function CreateFormPage() {
       description: "",
       fields: [{ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "", type: "text", required: false, options: [] }],
       isAnonymous: false,
+      aiMode: "assisted_creation",
     },
   });
 
@@ -107,7 +109,7 @@ export default function CreateFormPage() {
     // Here you would typically send data to your backend to save the form
     toast({
       title: "Form Created (Simulated)",
-      description: `Your form "${data.title}" has been successfully created.`,
+      description: `Your form "${data.title}" has been successfully created with AI mode: ${data.aiMode}.`,
     });
     // Optionally redirect or clear form: form.reset();
   }
@@ -222,7 +224,7 @@ export default function CreateFormPage() {
                                 >
                                   <FormControl><SelectTrigger><SelectValue placeholder="Select field type" /></SelectTrigger></FormControl>
                                   <SelectContent>
-                                    {(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number"] as FormFieldType[]).map(type => (
+                                    {(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps"] as FormFieldType[]).map(type => (
                                       <SelectItem key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</SelectItem>
                                     ))}
                                   </SelectContent>
@@ -361,6 +363,32 @@ export default function CreateFormPage() {
                             checked={field.value}
                             onCheckedChange={field.onChange}
                           />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                   <FormField
+                    control={form.control}
+                    name="aiMode"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                          <FormLabel className="flex items-center"><Brain className="mr-2 h-4 w-4" /> AI Mode</FormLabel>
+                          <FormDescription>
+                            Control AI behavior for this form.
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue placeholder="Select AI Mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="assisted_creation">Assisted Creation</SelectItem>
+                              <SelectItem value="dynamic">Dynamic Follow-ups</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </FormControl>
                       </FormItem>
                     )}
