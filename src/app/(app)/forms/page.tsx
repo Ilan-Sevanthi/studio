@@ -1,18 +1,19 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Eye, Edit2, Trash2, Share2, BarChartHorizontalBig } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Eye, Edit2, Trash2, Share2, BarChartHorizontalBig, FileText as FileTextIcon } from "lucide-react";
 import Link from "next/link";
 import type { FormSchema } from "@/types"; // Assuming types are defined
 
 // Mock Data
 const mockForms: FormSchema[] = [
-  { id: "form_1", title: "Customer Satisfaction Q3", description: "Gather feedback on Q3 performance.", fields: [], createdAt: new Date(2023, 8, 15).toISOString(), updatedAt: new Date(2023, 9, 1).toISOString(), isAnonymous: false },
-  { id: "form_2", title: "Employee Engagement Survey", description: "Annual survey for employee feedback.", fields: [], createdAt: new Date(2023, 7, 1).toISOString(), updatedAt: new Date(2023, 7, 10).toISOString(), isAnonymous: true },
-  { id: "form_3", title: "New Feature Feedback", description: "Feedback on the new dashboard analytics.", fields: [], createdAt: new Date(2023, 9, 20).toISOString(), updatedAt: new Date(2023, 9, 22).toISOString(), isAnonymous: false },
-  { id: "form_4", title: "Website Usability Test", description: "Collect insights on website navigation.", fields: [], createdAt: new Date(2023, 6, 5).toISOString(), updatedAt: new Date(2023, 6, 5).toISOString(), isAnonymous: true },
+  { id: "form_1", title: "Customer Satisfaction Q3", description: "Gather feedback on Q3 performance.", fields: [], createdAt: new Date(2023, 8, 15).toISOString(), updatedAt: new Date(2023, 9, 1).toISOString(), isAnonymous: false, status: "Active" },
+  { id: "form_2", title: "Employee Engagement Survey", description: "Annual survey for employee feedback.", fields: [], createdAt: new Date(2023, 7, 1).toISOString(), updatedAt: new Date(2023, 7, 10).toISOString(), isAnonymous: true, status: "Active" },
+  { id: "form_3", title: "New Feature Feedback", description: "Feedback on the new dashboard analytics.", fields: [], createdAt: new Date(2023, 9, 20).toISOString(), updatedAt: new Date(2023, 9, 22).toISOString(), isAnonymous: false, status: "Closed" },
+  { id: "form_4", title: "Website Usability Test", description: "Collect insights on website navigation.", fields: [], createdAt: new Date(2023, 6, 5).toISOString(), updatedAt: new Date(2023, 6, 5).toISOString(), isAnonymous: true, status: "Draft" },
 ];
 
 // Mock response counts, in a real app this would come from a database
@@ -43,7 +44,7 @@ export default function FormsPage() {
       {forms.length === 0 ? (
         <Card className="text-center py-12">
           <CardHeader>
-            <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+            <FileTextIcon className="mx-auto h-12 w-12 text-muted-foreground" />
             <CardTitle className="mt-4 text-2xl font-semibold">No Forms Yet</CardTitle>
           </CardHeader>
           <CardContent>
@@ -83,10 +84,14 @@ export default function FormsPage() {
                     </TableCell>
                     <TableCell>{mockResponseCounts[form.id] || 0}</TableCell>
                     <TableCell>
-                      {/* Logic for status based on dates or explicit status field */}
-                      <Badge variant={ Math.random() > 0.5 ? "default" : "secondary" } className={ Math.random() > 0.5 ? "bg-green-500/20 text-green-700" : "bg-yellow-500/20 text-yellow-700"}>
-                        { Math.random() > 0.5 ? "Active" : "Draft"}
-                      </Badge>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        form.status === 'Active' ? 'bg-green-500/20 text-green-700 dark:bg-green-400/20 dark:text-green-300' : 
+                        form.status === 'Closed' ? 'bg-red-500/20 text-red-700 dark:bg-red-400/20 dark:text-red-300' :
+                        form.status === 'Draft' ? 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-400/20 dark:text-yellow-300' :
+                        'bg-gray-500/20 text-gray-700 dark:bg-gray-400/20 dark:text-gray-300' // Default/fallback
+                      }`}>
+                        {form.status}
+                      </span>
                     </TableCell>
                     <TableCell>{new Date(form.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">

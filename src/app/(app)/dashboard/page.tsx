@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -18,7 +19,7 @@ const recentForms = [
 const quickStats = [
   { title: "Total Forms", value: "12", icon: FileText, change: "+2 this week" },
   { title: "Total Responses", value: "1,287", icon: MessageSquare, change: "+150 this week" },
-  { title: "Overall Sentiment", value: "Positive", icon: CheckCircle2, change: "75% Positive", color: "text-green-500" },
+  { title: "Overall Sentiment", value: "Positive", icon: CheckCircle2, change: "75% Positive", sentimentColor: "text-green-600 dark:text-green-400" },
   { title: "Response Rate", value: "68%", icon: BarChart3, change: "-2% this week" },
 ];
 
@@ -49,7 +50,7 @@ export default function DashboardPage() {
           <Card key={stat.title} className="shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.color || 'text-muted-foreground'}`} />
+              <stat.icon className={`h-5 w-5 ${stat.sentimentColor || 'text-muted-foreground'}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
@@ -82,9 +83,9 @@ export default function DashboardPage() {
                     <TableCell>{form.responses}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 text-xs rounded-full ${
-                        form.status === 'Active' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 
-                        form.status === 'Closed' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
-                        'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                        form.status === 'Active' ? 'bg-green-500/20 text-green-700 dark:bg-green-400/20 dark:text-green-300' : 
+                        form.status === 'Closed' ? 'bg-red-500/20 text-red-700 dark:bg-red-400/20 dark:text-red-300' :
+                        'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-400/20 dark:text-yellow-300'
                       }`}>
                         {form.status}
                       </span>
@@ -127,7 +128,6 @@ export default function DashboardPage() {
         </Card>
       </div>
       
-      {/* Placeholder for AI insights or tips */}
       <Card className="bg-primary/5 border-primary/20 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center gap-3">
           <Sparkles className="w-6 h-6 text-primary" />

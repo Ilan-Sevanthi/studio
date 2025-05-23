@@ -144,9 +144,9 @@ export default function EmailCampaignsPage() {
                       </TableCell>
                       <TableCell>
                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            campaign.status === 'Sent' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 
-                            campaign.status === 'Scheduled' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                            'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                            campaign.status === 'Sent' ? 'bg-green-500/20 text-green-700 dark:bg-green-400/20 dark:text-green-300' : 
+                            campaign.status === 'Scheduled' ? 'bg-blue-500/20 text-blue-700 dark:bg-blue-400/20 dark:text-blue-300' :
+                            'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-400/20 dark:text-yellow-300'
                           }`}>
                             {campaign.status}
                           </span>
