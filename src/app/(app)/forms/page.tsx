@@ -9,7 +9,7 @@ import Link from "next/link";
 import type { FormSchema } from "@/types"; // Assuming types are defined
 
 // Mock Data
-const mockForms: FormSchema[] = [
+const mockForms: (FormSchema & { status?: 'Active' | 'Closed' | 'Draft' })[] = [
   { id: "form_1", title: "Customer Satisfaction Q3", description: "Gather feedback on Q3 performance.", fields: [], createdAt: new Date(2023, 8, 15).toISOString(), updatedAt: new Date(2023, 9, 1).toISOString(), isAnonymous: false, status: "Active" },
   { id: "form_2", title: "Employee Engagement Survey", description: "Annual survey for employee feedback.", fields: [], createdAt: new Date(2023, 7, 1).toISOString(), updatedAt: new Date(2023, 7, 10).toISOString(), isAnonymous: true, status: "Active" },
   { id: "form_3", title: "New Feature Feedback", description: "Feedback on the new dashboard analytics.", fields: [], createdAt: new Date(2023, 9, 20).toISOString(), updatedAt: new Date(2023, 9, 22).toISOString(), isAnonymous: false, status: "Closed" },
@@ -85,12 +85,12 @@ export default function FormsPage() {
                     <TableCell>{mockResponseCounts[form.id] || 0}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 text-xs rounded-full ${
-                        form.status === 'Active' ? 'bg-green-500/20 text-green-700 dark:bg-green-400/20 dark:text-green-300' : 
-                        form.status === 'Closed' ? 'bg-red-500/20 text-red-700 dark:bg-red-400/20 dark:text-red-300' :
-                        form.status === 'Draft' ? 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-400/20 dark:text-yellow-300' :
-                        'bg-gray-500/20 text-gray-700 dark:bg-gray-400/20 dark:text-gray-300' // Default/fallback
+                        form.status === 'Active' ? 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--status-active-text))]' : 
+                        form.status === 'Closed' ? 'bg-[hsl(var(--destructive))]/20 text-[hsl(var(--status-closed-text))]' :
+                        form.status === 'Draft' ? 'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]' :
+                        'bg-muted text-muted-foreground' // Default/fallback style
                       }`}>
-                        {form.status}
+                        {form.status || 'N/A'}
                       </span>
                     </TableCell>
                     <TableCell>{new Date(form.createdAt).toLocaleDateString()}</TableCell>

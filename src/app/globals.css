@@ -32,6 +32,12 @@
     --chart-4: 150 60% 40%; /* A muted green */
     --chart-5: 25 80% 50%;  /* A warm orange */
 
+    /* Status Text Colors - Light Theme */
+    --status-active-text: 150 55% 30%; /* Darker Muted Green for text on light active bg */
+    --status-closed-text: 0 65% 40%;   /* Darker Destructive Red for text on light closed bg */
+    --status-draft-text: 45 90% 40%;    /* Darker Soft Gold for text on light draft bg */
+    --status-scheduled-text: 210 70% 45%;/* Darker Contrasting Blue for text on light scheduled bg */
+
     /* Sidebar specific theme */
     --sidebar-background: 40 40% 96%; /* Slightly darker beige for sidebar */
     --sidebar-foreground: 0 0% 13%; 
@@ -69,6 +75,12 @@
     --chart-3: 210 70% 65%;
     --chart-4: 150 50% 50%;
     --chart-5: 25 70% 55%;
+
+    /* Status Text Colors - Dark Theme */
+    --status-active-text: 150 50% 75%;   /* Lighter Muted Green for text on dark active bg */
+    --status-closed-text: 0 70% 80%;     /* Lighter Destructive Red for text on dark closed bg */
+    --status-draft-text: 45 90% 75%;      /* Lighter Soft Gold for text on dark draft bg */
+    --status-scheduled-text: 210 70% 85%; /* Lighter Contrasting Blue for text on dark scheduled bg */
     
     /* Sidebar specific theme for dark mode */
     --sidebar-background: 0 0% 10%; 

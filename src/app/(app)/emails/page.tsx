@@ -144,9 +144,9 @@ export default function EmailCampaignsPage() {
                       </TableCell>
                       <TableCell>
                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            campaign.status === 'Sent' ? 'bg-green-500/20 text-green-700 dark:bg-green-400/20 dark:text-green-300' : 
-                            campaign.status === 'Scheduled' ? 'bg-blue-500/20 text-blue-700 dark:bg-blue-400/20 dark:text-blue-300' :
-                            'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-400/20 dark:text-yellow-300'
+                            campaign.status === 'Sent' ? 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--status-active-text))]' : 
+                            campaign.status === 'Scheduled' ? 'bg-[hsl(var(--chart-3))]/20 text-[hsl(var(--status-scheduled-text))]' :
+                            'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]'
                           }`}>
                             {campaign.status}
                           </span>
@@ -267,7 +267,7 @@ export default function EmailCampaignsPage() {
                         placeholder="Craft your email content here..."
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                        Placeholders: `{{FormName}}`, `{{UserName}}` (if available), `[Form Link Button]` will be replaced by a button.
+                        Placeholders: `{"{{FormName}}"}`, `{"{{UserName}}"}` (if available), `{"[Form Link Button]"}` will be replaced by a button.
                     </p>
                 </div>
                 {/* Basic editor controls could be added here: Text size, color (simplified) */}
