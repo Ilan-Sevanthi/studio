@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,10 +14,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
-import { generateSurveyQuestions, GenerateSurveyQuestionsInput } from "@/ai/flows/generate-survey-questions";
+import { generateSurveyQuestions, GenerateSurveyQuestionsInput, SuggestedQuestion } from "@/ai/flows/generate-survey-questions";
 import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import type { FormFieldSchema, FormFieldType } from "@/types";
+import type { FormFieldSchema as AppFormFieldSchema, FormFieldType, FormFieldOption } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const formFieldSchema = z.object({
@@ -38,10 +39,21 @@ const createFormSchema = z.object({
 
 type CreateFormValues = z.infer<typeof createFormSchema>;
 
+// Helper function to generate unique IDs for options if AI doesn't provide them or if they are not unique.
+// For now, we assume AI provides unique values.
+const ensureOptionValues = (options?: FormFieldOption[]): FormFieldOption[] => {
+  if (!options) return [];
+  return options.map(opt => ({
+    label: opt.label,
+    value: opt.value || opt.label.toLowerCase().replace(/\s+/g, '-'), // Fallback value generation
+  }));
+};
+
+
 export default function CreateFormPage() {
   const { toast } = useToast();
   const [aiTopic, setAiTopic] = useState("");
-  const [generatedQuestions, setGeneratedQuestions] = useState<string[]>([]);
+  const [generatedQuestions, setGeneratedQuestions] = useState<SuggestedQuestion[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const form = useForm<CreateFormValues>({
@@ -69,11 +81,11 @@ export default function CreateFormPage() {
     try {
       const input: GenerateSurveyQuestionsInput = { topic: aiTopic };
       const result = await generateSurveyQuestions(input);
-      if (result && result.questions) {
+      if (result && result.questions && result.questions.length > 0) {
         setGeneratedQuestions(result.questions);
         toast({ title: "Success", description: "AI generated some questions for you!" });
       } else {
-        toast({ title: "Error", description: "Could not generate questions. Please try again.", variant: "destructive" });
+        toast({ title: "No Questions Generated", description: "The AI couldn't generate questions for this topic, or the input was unparsable. Please try a different topic or phrasing.", variant: "default" });
       }
     } catch (error) {
       console.error("AI Question Generation Error:", error);
@@ -82,15 +94,18 @@ export default function CreateFormPage() {
     setIsGenerating(false);
   };
 
-  const addGeneratedQuestionToForm = (questionText: string, type: FormFieldType = "text") => {
+  const addGeneratedQuestionToForm = (question: SuggestedQuestion) => {
     append({
       id: `field_${Math.random().toString(36).substr(2, 9)}`,
-      label: questionText,
-      type: type,
-      required: false,
-      options: type === "select" || type === "radio" ? [{label: "Option 1", value: "option_1"}] : [],
+      label: question.label,
+      // Ensure the type from AI is compatible with FormFieldType
+      type: question.type as FormFieldType, 
+      required: false, // Default to not required
+      placeholder: "", // AI could potentially suggest placeholders too
+      options: ensureOptionValues(question.options),
+      description: "", // AI could suggest descriptions
     });
-    toast({ title: "Question Added", description: `"${questionText}" added to your form.` });
+    toast({ title: "Question Added", description: `"${question.label}" added to your form.` });
   };
   
   function onSubmit(data: CreateFormValues) {
@@ -121,7 +136,7 @@ export default function CreateFormPage() {
           <div className="flex justify-between items-center mb-8">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">Create New Form</h1>
-                <p className="text-muted-foreground">Design your feedback form with various field types.</p>
+                <p className="text-muted-foreground">Design your feedback form with various field types or get help from AI.</p>
             </div>
             <Button type="submit" size="lg">
                 <PlusCircle className="mr-2 h-5 w-5" /> Save Form
@@ -172,8 +187,8 @@ export default function CreateFormPage() {
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[400px] pr-3"> {/* Added ScrollArea */}
-                  {fields.map((field, index) => (
-                    <Accordion key={field.id} type="single" collapsible className="w-full mb-2 border rounded-md">
+                  {fields.map((fieldItem, index) => ( // Renamed field to fieldItem to avoid conflict
+                    <Accordion key={fieldItem.id} type="single" collapsible className="w-full mb-2 border rounded-md">
                       <AccordionItem value={`item-${index}`} className="border-b-0">
                         <AccordionTrigger className="p-3 hover:bg-muted/50 rounded-t-md">
                           <div className="flex items-center w-full">
@@ -201,10 +216,21 @@ export default function CreateFormPage() {
                             render={({ field: fieldProps }) => (
                               <FormItem>
                                 <FormLabel>Field Type</FormLabel>
-                                <Select onValueChange={fieldProps.onChange} defaultValue={fieldProps.value}>
+                                <Select onValueChange={(value) => {
+                                  fieldProps.onChange(value as FormFieldType);
+                                  // If type changes to something that doesn't use options, clear them
+                                  if (!["select", "radio", "checkbox"].includes(value)) {
+                                    form.setValue(`fields.${index}.options`, []);
+                                  } else if (!form.getValues(`fields.${index}.options`)?.length) {
+                                    // If type changes to one that uses options and has no options, add a default
+                                    form.setValue(`fields.${index}.options`, [{ label: "Option 1", value: "option_1" }]);
+                                  }
+                                }}
+                                defaultValue={fieldProps.value}
+                                >
                                   <FormControl><SelectTrigger><SelectValue placeholder="Select field type" /></SelectTrigger></FormControl>
                                   <SelectContent>
-                                    {["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number"].map(type => (
+                                    {(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number"] as FormFieldType[]).map(type => (
                                       <SelectItem key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</SelectItem>
                                     ))}
                                   </SelectContent>
@@ -213,7 +239,7 @@ export default function CreateFormPage() {
                               </FormItem>
                             )}
                           />
-                          {(form.watch(`fields.${index}.type`) === "select" || form.watch(`fields.${index}.type`) === "radio") && (
+                          {(form.watch(`fields.${index}.type`) === "select" || form.watch(`fields.${index}.type`) === "radio" || form.watch(`fields.${index}.type`) === "checkbox") && (
                             <div className="space-y-2">
                               <FormLabel>Options</FormLabel>
                               {form.watch(`fields.${index}.options`)?.map((option, optIndex) => (
@@ -229,7 +255,16 @@ export default function CreateFormPage() {
                                     control={form.control}
                                     name={`fields.${index}.options.${optIndex}.value`}
                                     render={({ field: fieldProps }) => (
-                                      <Input placeholder="Option Value" {...fieldProps} className="flex-1" />
+                                      <Input placeholder="Option Value (auto-generated if blank)" {...fieldProps} className="flex-1" 
+                                        onBlur={(e) => { // Auto-generate value if label exists and value is empty
+                                          const label = form.getValues(`fields.${index}.options.${optIndex}.label`);
+                                          if (label && !e.target.value) {
+                                            fieldProps.onChange(label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
+                                          } else {
+                                            fieldProps.onChange(e.target.value);
+                                          }
+                                        }}
+                                      />
                                     )}
                                   />
                                   <Button type="button" variant="ghost" size="icon" onClick={() => removeFieldOption(index, optIndex)}>
@@ -294,26 +329,42 @@ export default function CreateFormPage() {
               <Card className="shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center"><Sparkles className="mr-2 h-5 w-5 text-primary" /> AI Question Generator</CardTitle>
-                  <CardDescription>Get suggestions for your form questions.</CardDescription>
+                  <CardDescription>Enter a topic, or paste questions, to get AI suggestions.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
-                    <Label htmlFor="ai-topic">Topic</Label>
-                    <Input id="ai-topic" placeholder="e.g., Customer service experience" value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} />
+                    <Label htmlFor="ai-topic">Topic / Paste Questions</Label>
+                    <Textarea 
+                        id="ai-topic" 
+                        placeholder="e.g., Customer service experience, or paste existing questions like '1. Favorite color? (Red, Blue)'" 
+                        value={aiTopic} 
+                        onChange={(e) => setAiTopic(e.target.value)}
+                        rows={3}
+                    />
                   </div>
                   <Button onClick={handleGenerateQuestions} disabled={isGenerating} className="w-full">
-                    <Wand2 className="mr-2 h-4 w-4" /> {isGenerating ? "Generating..." : "Generate Questions"}
+                    <Wand2 className="mr-2 h-4 w-4" /> {isGenerating ? "Generating..." : "Generate / Parse Questions"}
                   </Button>
                   {generatedQuestions.length > 0 && (
-                    <div className="mt-4 space-y-2 max-h-60 overflow-y-auto border p-3 rounded-md">
-                      <h4 className="font-semibold text-sm">Suggested Questions:</h4>
-                      <ul className="list-disc list-inside text-sm space-y-1">
+                    <div className="mt-4 space-y-2 max-h-60 overflow-y-auto border p-3 rounded-md bg-muted/50">
+                      <h4 className="font-semibold text-sm text-muted-foreground">Suggested Questions:</h4>
+                      <ul className="space-y-1 text-sm">
                         {generatedQuestions.map((q, i) => (
-                          <li key={i} className="flex justify-between items-center group">
-                            <span>{q}</span>
-                            <Button variant="ghost" size="sm" onClick={() => addGeneratedQuestionToForm(q)} className="opacity-0 group-hover:opacity-100">
-                              <PlusCircle className="h-4 w-4" />
-                            </Button>
+                          <li key={i} className="p-2 border-b border-border last:border-b-0 hover:bg-background rounded group">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <span className="font-medium block">{q.label}</span>
+                                    <span className="text-xs text-muted-foreground">Type: {q.type}</span>
+                                    {q.options && q.options.length > 0 && (
+                                    <ul className="list-disc list-inside pl-4 mt-1 text-xs">
+                                        {q.options.map((opt, optIdx) => <li key={optIdx}>{opt.label} ({opt.value})</li>)}
+                                    </ul>
+                                    )}
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => addGeneratedQuestionToForm(q)} className="opacity-0 group-hover:opacity-100 mt-1 shrink-0">
+                                <PlusCircle className="h-4 w-4" /> Add
+                                </Button>
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -366,3 +417,4 @@ export default function CreateFormPage() {
     </div>
   );
 }
+
