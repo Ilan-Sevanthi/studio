@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -55,7 +56,7 @@ const sentimentData = [
 ];
 
 
-export default function FormResultsPage({ params }: { params: { formId: string } }) {
+export default function FormResultsPage({ params: { formId } }: { params: { formId: string } }) {
   const { toast } = useToast();
   const [form, setForm] = useState<FormSchema | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
@@ -81,7 +82,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
     })).sort((a,b) => parseInt(a.rating.split(" ")[1]) - parseInt(b.rating.split(" ")[1]));
     setRatingDistribution(distData);
 
-  }, [params.formId]);
+  }, [formId]);
 
   const handleSummarizeFeedback = async () => {
     if (!responses.length) {
@@ -289,3 +290,4 @@ export default function FormResultsPage({ params }: { params: { formId: string }
     </div>
   );
 }
+
