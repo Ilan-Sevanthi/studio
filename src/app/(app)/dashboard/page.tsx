@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, FileText, Users, MessageSquare, AlertTriangle, CheckCircle2, PlusCircle } from "lucide-react";
+import { BarChart3, FileText, Users, MessageSquare, AlertTriangle, CheckCircle2, PlusCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
