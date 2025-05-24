@@ -10,10 +10,10 @@ import type { FormSchema } from "@/types"; // Assuming types are defined
 
 // Mock Data
 const mockForms: (FormSchema & { status?: 'Active' | 'Closed' | 'Draft' })[] = [
-  { id: "form_1", title: "Customer Satisfaction Q3", description: "Gather feedback on Q3 performance.", fields: [], createdAt: new Date(2023, 8, 15).toISOString(), updatedAt: new Date(2023, 9, 1).toISOString(), isAnonymous: false, status: "Active" },
-  { id: "form_2", title: "Employee Engagement Survey", description: "Annual survey for employee feedback.", fields: [], createdAt: new Date(2023, 7, 1).toISOString(), updatedAt: new Date(2023, 7, 10).toISOString(), isAnonymous: true, status: "Active" },
-  { id: "form_3", title: "New Feature Feedback", description: "Feedback on the new dashboard analytics.", fields: [], createdAt: new Date(2023, 9, 20).toISOString(), updatedAt: new Date(2023, 9, 22).toISOString(), isAnonymous: false, status: "Closed" },
-  { id: "form_4", title: "Website Usability Test", description: "Collect insights on website navigation.", fields: [], createdAt: new Date(2023, 6, 5).toISOString(), updatedAt: new Date(2023, 6, 5).toISOString(), isAnonymous: true, status: "Draft" },
+  { id: "form_1", title: "Customer Satisfaction Q3", description: "Gather feedback on Q3 performance.", fields: [], createdBy: "user_mock", createdAt: new Date(2023, 8, 15).toISOString(), updatedAt: new Date(2023, 9, 1).toISOString(), isAnonymous: false, status: "Active", aiMode: "assisted_creation" },
+  { id: "form_2", title: "Employee Engagement Survey", description: "Annual survey for employee feedback.", fields: [], createdBy: "user_mock", createdAt: new Date(2023, 7, 1).toISOString(), updatedAt: new Date(2023, 7, 10).toISOString(), isAnonymous: true, status: "Active", aiMode: "none" },
+  { id: "form_3", title: "New Feature Feedback", description: "Feedback on the new dashboard analytics.", fields: [], createdBy: "user_mock", createdAt: new Date(2023, 9, 20).toISOString(), updatedAt: new Date(2023, 9, 22).toISOString(), isAnonymous: false, status: "Closed", aiMode: "assisted_creation" },
+  { id: "form_4", title: "Website Usability Test", description: "Collect insights on website navigation.", fields: [], createdBy: "user_mock", createdAt: new Date(2023, 6, 5).toISOString(), updatedAt: new Date(2023, 6, 5).toISOString(), isAnonymous: true, status: "Draft", aiMode: "none" },
 ];
 
 // Mock response counts, in a real app this would come from a database
@@ -87,7 +87,7 @@ export default function FormsPage() {
                       <span className={`px-2 py-1 text-xs rounded-full ${
                         form.status === 'Active' ? 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--status-active-text))]' : 
                         form.status === 'Closed' ? 'bg-[hsl(var(--destructive))]/20 text-[hsl(var(--status-closed-text))]' :
-                        form.status === 'Draft' ? 'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]' : // Using chart-2 (Teal/Accent) for Draft
+                        form.status === 'Draft' ? 'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]' :
                         'bg-muted text-muted-foreground' // Default/fallback style
                       }`}>
                         {form.status || 'N/A'}

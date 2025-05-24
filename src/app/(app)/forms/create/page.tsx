@@ -13,12 +13,13 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
-import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain } from "lucide-react";
+import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain, Eye } from "lucide-react";
 import { generateSurveyQuestions, GenerateSurveyQuestionsInput, SuggestedQuestion } from "@/ai/flows/generate-survey-questions";
 import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import type { FormFieldSchema as AppFormFieldSchema, FormFieldType, FormFieldOption, FormSchema } from "@/types";
+import type { FormFieldSchema as AppFormFieldSchema, FormFieldType, FormFieldOption, FormSchema, QuestionSchema } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import Link from "next/link"; // Added Link import
 
 const formFieldSchema = z.object({
   id: z.string().default(() => `field_${Math.random().toString(36).substr(2, 9)}`),
@@ -42,14 +43,18 @@ const createFormSchema = z.object({
 type CreateFormValues = z.infer<typeof createFormSchema>;
 
 // Helper function to generate unique IDs for options if AI doesn't provide them or if they are not unique.
-const ensureOptionValues = (options?: FormFieldOption[]): FormFieldOption[] => {
+const ensureOptionValues = (options?: SuggestedQuestion['options']): FormFieldOption[] => {
   if (!options) return [];
   const valueMap = new Map<string, number>();
   return options.map(opt => {
     let value = opt.value || opt.label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    if (!value.trim()) { // Handle case where label might be only special characters or empty
+        value = `option-${Math.random().toString(36).substr(2, 5)}`;
+    }
     if (valueMap.has(value)) {
-        valueMap.set(value, (valueMap.get(value) || 0) + 1);
-        value = `${value}-${valueMap.get(value)}`;
+        const count = (valueMap.get(value) || 0) + 1;
+        valueMap.set(value, count);
+        value = `${value}-${count}`;
     } else {
         valueMap.set(value, 0);
     }
@@ -60,22 +65,31 @@ const ensureOptionValues = (options?: FormFieldOption[]): FormFieldOption[] => {
 // Placeholder function for simulating backend call to save form
 async function saveFormToBackend(formData: CreateFormValues): Promise<FormSchema> {
   console.log("Simulating saving form to backend:", formData);
-  // In a real app, this would call a Cloud Function or directly interact with Firestore
-  // to create a 'surveys' document and potentially 'questions' sub-collection/documents.
   await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
   
-  // For now, return a mock FormSchema object as if it was created
+  const formId = `form_sim_${Date.now()}`; // Generate formId once
+  
   const createdForm: FormSchema = {
-    id: `form_sim_${Date.now()}`,
+    id: formId,
     title: formData.title,
     description: formData.description,
-    fields: formData.fields.map(f => ({...f, surveyId: `form_sim_${Date.now()}`})), // Ensure surveyId is set for fields
+    fields: formData.fields.map(f => {
+      const { label, ...restOfField } = f; // Destructure label
+      return {
+        ...restOfField, // Spread other properties like id, type, options, etc.
+        id: restOfField.id || `field_sim_${Math.random().toString(36).substr(2, 9)}`, // Ensure field ID
+        text: label, // Map formFieldSchema.label to QuestionSchema.text
+        type: restOfField.type as FormFieldType, // Ensure correct type
+        surveyId: formId, // Use the generated formId
+      } as QuestionSchema; // Cast to QuestionSchema
+    }),
     createdBy: "mock_user_id", // Replace with actual user ID
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     isAnonymous: formData.isAnonymous,
-    aiMode: formData.aiMode,
+    aiMode: formData.aiMode as "dynamic" | "assisted_creation" | "none",
   };
+  console.log("Simulated created form object:", createdForm);
   return createdForm;
 }
 
@@ -142,7 +156,16 @@ export default function CreateFormPage() {
       console.log("Form saved (simulated):", savedForm);
       toast({
         title: "Form Created (Simulated)",
-        description: `Your form "${savedForm.title}" has been successfully created. In a real app, this would be saved to Firestore.`,
+        description: (
+            <>
+              Your form "{savedForm.title}" has been created.
+              <Link href={`/forms/${savedForm.id}/respond`} target="_blank" className="underline ml-1 font-semibold hover:text-primary">
+                Preview it here.
+              </Link>
+              <p className="text-xs mt-1">(In a real app, this would be saved to a database.)</p>
+            </>
+          ),
+        duration: 7000, // Give more time to click the link
       });
       // Optionally redirect or clear form: form.reset();
       // router.push(`/forms/${savedForm.id}/edit`); // Example redirect
