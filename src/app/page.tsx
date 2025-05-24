@@ -94,16 +94,16 @@ export default function HomePage() {
               >
                 <div className="flex items-center">
                   <div className="flex -space-x-4">
-                    <Avatar className="w-16 h-16 border-2 border-background shadow-md">
-                      <AvatarImage src="https://placehold.co/80x80.png" alt="User 1" />
+                    <Avatar className="w-16 h-16 border-2 border-background shadow-md animate-pulse">
+                      <AvatarImage src="https://placehold.co/80x80.png" alt="User 1" data-ai-hint="diverse user avatar" />
                       <AvatarFallback>U1</AvatarFallback>
                     </Avatar>
-                    <Avatar className="w-20 h-20 border-2 border-background z-10 transform scale-110 shadow-lg">
-                      <AvatarImage src="https://placehold.co/100x100.png" alt="User 2" />
+                    <Avatar className="w-20 h-20 border-2 border-background z-10 transform scale-110 shadow-lg animate-pulse delay-150">
+                      <AvatarImage src="https://placehold.co/100x100.png" alt="User 2" data-ai-hint="profile picture" />
                       <AvatarFallback>U2</AvatarFallback>
                     </Avatar>
-                    <Avatar className="w-16 h-16 border-2 border-background shadow-md">
-                      <AvatarImage src="https://placehold.co/80x80.png" alt="User 3" />
+                    <Avatar className="w-16 h-16 border-2 border-background shadow-md animate-pulse delay-300">
+                      <AvatarImage src="https://placehold.co/80x80.png" alt="User 3" data-ai-hint="user avatar" />
                       <AvatarFallback>U3</AvatarFallback>
                     </Avatar>
                   </div>
