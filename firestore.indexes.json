@@ -2,7 +2,7 @@
   "indexes": [
     {
       "collectionGroup": "surveys",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "createdBy",
