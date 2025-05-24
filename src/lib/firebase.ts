@@ -5,7 +5,7 @@ import { type Auth, getAuth } from 'firebase/auth';
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDUES39H8RLcGXKw0FTOpczvjUpptrDaRI",
-  authDomain: "feedback-flow-d3nju.firebaseapp.com",
+  authDomain: "feedback-flow-d3nju.firebaseapp.com||studio-hazel-pi.vercel.app",
   projectId: "feedback-flow-d3nju",
   storageBucket: "feedback-flow-d3nju.firebasestorage.app",
   messagingSenderId: "1086736095911",
