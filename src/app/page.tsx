@@ -89,26 +89,16 @@ export default function HomePage() {
                 </Button>
               </div>
               <div 
-                className="hidden md:flex items-center justify-center relative min-h-[250px] md:h-full bg-secondary/20 p-8" 
-                data-ai-hint="user community avatars"
+                className="hidden md:flex items-center justify-center relative min-h-[300px] md:h-full bg-secondary/20 p-8"
               >
-                <div className="flex items-center">
-                  <div className="flex -space-x-4">
-                    <Avatar className="w-16 h-16 border-2 border-background shadow-md animate-pulse">
-                      <AvatarImage src="https://placehold.co/80x80.png" alt="User 1" data-ai-hint="diverse user avatar" />
-                      <AvatarFallback>U1</AvatarFallback>
-                    </Avatar>
-                    <Avatar className="w-20 h-20 border-2 border-background z-10 transform scale-110 shadow-lg animate-pulse delay-150">
-                      <AvatarImage src="https://placehold.co/100x100.png" alt="User 2" data-ai-hint="profile picture" />
-                      <AvatarFallback>U2</AvatarFallback>
-                    </Avatar>
-                    <Avatar className="w-16 h-16 border-2 border-background shadow-md animate-pulse delay-300">
-                      <AvatarImage src="https://placehold.co/80x80.png" alt="User 3" data-ai-hint="user avatar" />
-                      <AvatarFallback>U3</AvatarFallback>
-                    </Avatar>
-                  </div>
-                  <p className="ml-6 text-xl font-medium text-muted-foreground opacity-80">+ thousands more</p>
-                </div>
+                <Image
+                  src="https://placehold.co/500x350.png"
+                  alt="Sample Form Template"
+                  width={500}
+                  height={350}
+                  className="rounded-lg shadow-xl object-cover transform transition-transform duration-300 ease-in-out hover:scale-105"
+                  data-ai-hint="form template"
+                />
               </div>
             </div>
           </Card>
