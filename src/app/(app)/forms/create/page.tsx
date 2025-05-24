@@ -13,18 +13,22 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
-import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain, Eye } from "lucide-react";
+import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain, Eye, Loader2 } from "lucide-react";
 import { generateSurveyQuestions, GenerateSurveyQuestionsInput, SuggestedQuestion } from "@/ai/flows/generate-survey-questions";
 import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import type { FormFieldSchema as AppFormFieldSchema, FormFieldType, FormFieldOption, FormSchema, QuestionSchema } from "@/types";
+import type { FormFieldOption, FormFieldType, FormSchema as AppFormSchema, QuestionSchema } from "@/types"; // Renamed FormSchema to AppFormSchema to avoid conflict
 import { ScrollArea } from "@/components/ui/scroll-area";
-import Link from "next/link"; // Added Link import
+import Link from "next/link";
+import { db, auth } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useRouter } from "next/navigation";
+
 
 const formFieldSchema = z.object({
   id: z.string().default(() => `field_${Math.random().toString(36).substr(2, 9)}`),
-  surveyId: z.string().optional(), // Will be populated when form is saved
-  label: z.string().min(1, "Label is required"),
+  // surveyId is not part of field schema for form creation, it's part of QuestionSchema for DB
+  label: z.string().min(1, "Label is required"), // Will be mapped to QuestionSchema.text
   type: z.enum(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps"]),
   required: z.boolean().default(false),
   placeholder: z.string().optional(),
@@ -32,7 +36,7 @@ const formFieldSchema = z.object({
   description: z.string().optional(),
 });
 
-const createFormSchema = z.object({
+const createFormSchemaValidation = z.object({ // Renamed for clarity, this is for validation
   title: z.string().min(3, "Title must be at least 3 characters"),
   description: z.string().optional(),
   fields: z.array(formFieldSchema).min(1, "Add at least one field"),
@@ -40,68 +44,89 @@ const createFormSchema = z.object({
   aiMode: z.enum(["dynamic", "assisted_creation", "none"]).default("none"),
 });
 
-type CreateFormValues = z.infer<typeof createFormSchema>;
+type CreateFormValues = z.infer<typeof createFormSchemaValidation>;
 
-// Helper function to generate unique IDs for options if AI doesn't provide them or if they are not unique.
 const ensureOptionValues = (options?: SuggestedQuestion['options']): FormFieldOption[] => {
-  if (!options) return [];
+  if (!options || options.length === 0) return [];
   const valueMap = new Map<string, number>();
   return options.map(opt => {
     let value = opt.value || opt.label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    if (!value.trim()) { // Handle case where label might be only special characters or empty
+    if (!value.trim()) {
         value = `option-${Math.random().toString(36).substr(2, 5)}`;
     }
-    if (valueMap.has(value)) {
-        const count = (valueMap.get(value) || 0) + 1;
-        valueMap.set(value, count);
-        value = `${value}-${count}`;
+    const originalValue = value;
+    let count = valueMap.get(originalValue) || 0;
+    if (valueMap.has(originalValue)) {
+        value = `${originalValue}-${count + 1}`;
+        valueMap.set(originalValue, count + 1);
     } else {
-        valueMap.set(value, 0);
+        valueMap.set(originalValue, 1);
     }
     return { label: opt.label, value };
   });
 };
 
-// Placeholder function for simulating backend call to save form
-async function saveFormToBackend(formData: CreateFormValues): Promise<FormSchema> {
-  console.log("Simulating saving form to backend:", formData);
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+async function saveFormToBackend(formData: CreateFormValues, userId: string): Promise<AppFormSchema> {
+  console.log("Attempting to save form to Firestore:", formData);
   
-  const formId = `form_sim_${Date.now()}`; // Generate formId once
-  
-  const createdForm: FormSchema = {
-    id: formId,
+  // Map form builder fields to QuestionSchema for Firestore
+  const questionsForDb: QuestionSchema[] = formData.fields.map(f => ({
+    id: f.id || `field_db_${Math.random().toString(36).substr(2, 9)}`, // Ensure field ID for DB
+    surveyId: "", // This will be set after the survey doc is created, or handled by backend if questions are subcollection
+    text: f.label, 
+    type: f.type as FormFieldType,
+    options: f.options || [],
+    required: f.required,
+    placeholder: f.placeholder || "",
+    description: f.description || "",
+    // AI related fields can be added here if needed by default
+  }));
+
+  const surveyDataForDb = {
     title: formData.title,
-    description: formData.description,
-    fields: formData.fields.map(f => {
-      const { label, ...restOfField } = f; // Destructure label
-      return {
-        ...restOfField, // Spread other properties like id, type, options, etc.
-        id: restOfField.id || `field_sim_${Math.random().toString(36).substr(2, 9)}`, // Ensure field ID
-        text: label, // Map formFieldSchema.label to QuestionSchema.text
-        type: restOfField.type as FormFieldType, // Ensure correct type
-        surveyId: formId, // Use the generated formId
-      } as QuestionSchema; // Cast to QuestionSchema
-    }),
-    createdBy: "mock_user_id", // Replace with actual user ID
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    description: formData.description || "",
+    fields: questionsForDb, // Storing questions embedded in the survey document for simplicity
+    createdBy: userId,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
     isAnonymous: formData.isAnonymous,
     aiMode: formData.aiMode as "dynamic" | "assisted_creation" | "none",
+    // status: "Draft" // Example default status
   };
-  console.log("Simulated created form object:", createdForm);
-  return createdForm;
+
+  try {
+    const docRef = await addDoc(collection(db, "surveys"), surveyDataForDb);
+    console.log("Form saved with ID: ", docRef.id);
+    
+    // Construct the returned AppFormSchema
+    // For fields, map back with surveyId. In a real scenario, if questions were a subcollection, this would be different.
+    const savedFields = questionsForDb.map(q => ({ ...q, surveyId: docRef.id }));
+    
+    return {
+      id: docRef.id,
+      ...surveyDataForDb,
+      fields: savedFields, // Use the fields array that now has surveyId potentially
+      createdAt: new Date().toISOString(), // Approximate, serverTimestamp will be accurate in DB
+      updatedAt: new Date().toISOString(), // Approximate
+    } as AppFormSchema;
+
+  } catch (error) {
+    console.error("Error saving form to Firestore:", error);
+    throw error; // Re-throw to be caught by onSubmit
+  }
 }
 
 
 export default function CreateFormPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [aiTopic, setAiTopic] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSavingForm, setIsSavingForm] = useState(false);
+  const currentUser = auth.currentUser;
 
   const form = useForm<CreateFormValues>({
-    resolver: zodResolver(createFormSchema),
+    resolver: zodResolver(createFormSchemaValidation),
     defaultValues: {
       title: "",
       description: "",
@@ -150,28 +175,32 @@ export default function CreateFormPage() {
   };
   
   async function onSubmit(data: CreateFormValues) {
+    if (!currentUser) {
+      toast({ title: "Authentication Error", description: "You must be logged in to create a form.", variant: "destructive" });
+      return;
+    }
     setIsSavingForm(true);
     try {
-      const savedForm = await saveFormToBackend(data);
-      console.log("Form saved (simulated):", savedForm);
+      const savedForm = await saveFormToBackend(data, currentUser.uid);
+      console.log("Form saved:", savedForm);
       toast({
-        title: "Form Created (Simulated)",
+        title: "Form Created Successfully!",
         description: (
             <>
-              Your form "{savedForm.title}" has been created.
+              Your form "{savedForm.title}" has been saved to the database.
               <Link href={`/forms/${savedForm.id}/respond`} target="_blank" className="underline ml-1 font-semibold hover:text-primary">
                 Preview it here.
               </Link>
-              <p className="text-xs mt-1">(In a real app, this would be saved to a database.)</p>
             </>
           ),
-        duration: 7000, // Give more time to click the link
+        duration: 7000,
       });
-      // Optionally redirect or clear form: form.reset();
-      // router.push(`/forms/${savedForm.id}/edit`); // Example redirect
+      // Optionally redirect or clear form
+      form.reset(); // Clear the form for a new entry
+      router.push("/forms"); // Redirect to the forms list page
     } catch (error) {
       console.error("Error saving form:", error);
-      toast({ title: "Save Error", description: "Could not save the form.", variant: "destructive" });
+      toast({ title: "Save Error", description: "Could not save the form to the database.", variant: "destructive" });
     } finally {
       setIsSavingForm(false);
     }
@@ -179,12 +208,12 @@ export default function CreateFormPage() {
   
   const addFieldOption = (fieldIndex: number) => {
     const currentOptions = form.getValues(`fields.${fieldIndex}.options`) || [];
-    form.setValue(`fields.${fieldIndex}.options`, [...currentOptions, { label: "", value: "" }]);
+    form.setValue(`fields.${fieldIndex}.options`, [...currentOptions, { label: `Option ${currentOptions.length + 1}`, value: `option_${currentOptions.length + 1}` }]);
   };
 
   const removeFieldOption = (fieldIndex: number, optionIndex: number) => {
-    const currentOptions = form.getValues(`fields.${fieldIndex}.options`) || [];
-    form.setValue(`fields.${fieldIndex}.options`, currentOptions.filter((_, i) => i !== optionIndex));
+    const currentOptions = form.getValues(`fields.${index}.options`) || [];
+    form.setValue(`fields.${index}.options`, currentOptions.filter((_, i) => i !== optionIndex));
   };
 
 
@@ -198,14 +227,14 @@ export default function CreateFormPage() {
                 <p className="text-muted-foreground">Design your feedback form with various field types or get help from AI.</p>
             </div>
             <Button type="submit" size="lg" disabled={isSavingForm || isGenerating}>
-                {isSavingForm ? "Saving..." : <><PlusCircle className="mr-2 h-5 w-5" /> Save Form</>}
+                {isSavingForm ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Saving...</> : <><PlusCircle className="mr-2 h-5 w-5" /> Save Form</>}
             </Button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form Fields Section - Main Area */}
             <div className="lg:col-span-2 space-y-6">
-              <Card className="shadow-sm">
+              <Card className="shadow-lg">
                 <CardHeader>
                   <CardTitle>Form Details</CardTitle>
                 </CardHeader>
@@ -217,7 +246,7 @@ export default function CreateFormPage() {
                       <FormItem>
                         <FormLabel>Form Title</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., Customer Satisfaction Survey" {...field} />
+                          <Input placeholder="e.g., Customer Satisfaction Survey" {...field} disabled={isSavingForm || isGenerating} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -230,7 +259,7 @@ export default function CreateFormPage() {
                       <FormItem>
                         <FormLabel>Form Description (Optional)</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Provide a brief description or instructions for your form." {...field} />
+                          <Textarea placeholder="Provide a brief description or instructions for your form." {...field} disabled={isSavingForm || isGenerating} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -239,10 +268,10 @@ export default function CreateFormPage() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm">
+              <Card className="shadow-lg">
                 <CardHeader>
                   <CardTitle>Form Fields</CardTitle>
-                  <CardDescription>Drag to reorder fields (TODO). Click a field to edit its properties.</CardDescription>
+                  <CardDescription>Add and configure questions for your form. </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[400px] pr-3">
@@ -264,7 +293,7 @@ export default function CreateFormPage() {
                             render={({ field: fieldProps }) => (
                               <FormItem>
                                 <FormLabel>Field Label</FormLabel>
-                                <FormControl><Input placeholder="e.g., Your Name" {...fieldProps} /></FormControl>
+                                <FormControl><Input placeholder="e.g., Your Name" {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -284,6 +313,7 @@ export default function CreateFormPage() {
                                   }
                                 }}
                                 defaultValue={fieldProps.value}
+                                disabled={isSavingForm || isGenerating}
                                 >
                                   <FormControl><SelectTrigger><SelectValue placeholder="Select field type" /></SelectTrigger></FormControl>
                                   <SelectContent>
@@ -305,7 +335,7 @@ export default function CreateFormPage() {
                                     control={form.control}
                                     name={`fields.${index}.options.${optIndex}.label`}
                                     render={({ field: fieldProps }) => (
-                                      <Input placeholder="Option Label" {...fieldProps} className="flex-1" />
+                                      <Input placeholder="Option Label" {...fieldProps} className="flex-1" disabled={isSavingForm || isGenerating} />
                                     )}
                                   />
                                   <FormField
@@ -313,6 +343,7 @@ export default function CreateFormPage() {
                                     name={`fields.${index}.options.${optIndex}.value`}
                                     render={({ field: fieldProps }) => (
                                       <Input placeholder="Option Value (auto-if-blank)" {...fieldProps} className="flex-1" 
+                                        disabled={isSavingForm || isGenerating}
                                         onBlur={(e) => { 
                                           const label = form.getValues(`fields.${index}.options.${optIndex}.label`);
                                           if (label && !e.target.value) {
@@ -324,12 +355,12 @@ export default function CreateFormPage() {
                                       />
                                     )}
                                   />
-                                  <Button type="button" variant="ghost" size="icon" onClick={() => removeFieldOption(index, optIndex)}>
+                                  <Button type="button" variant="ghost" size="icon" onClick={() => removeFieldOption(index, optIndex)} disabled={isSavingForm || isGenerating}>
                                     <Trash2 className="h-4 w-4 text-destructive" />
                                   </Button>
                                 </div>
                               ))}
-                              <Button type="button" variant="outline" size="sm" onClick={() => addFieldOption(index)}>
+                              <Button type="button" variant="outline" size="sm" onClick={() => addFieldOption(index)} disabled={isSavingForm || isGenerating}>
                                 <PlusCircle className="mr-2 h-4 w-4" /> Add Option
                               </Button>
                             </div>
@@ -340,7 +371,7 @@ export default function CreateFormPage() {
                             render={({ field: fieldProps }) => (
                               <FormItem>
                                 <FormLabel>Placeholder (Optional)</FormLabel>
-                                <FormControl><Input placeholder="e.g., Enter your feedback here" {...fieldProps} /></FormControl>
+                                <FormControl><Input placeholder="e.g., Enter your feedback here" {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
                               </FormItem>
                             )}
                           />
@@ -350,7 +381,7 @@ export default function CreateFormPage() {
                             render={({ field: fieldProps }) => (
                               <FormItem>
                                 <FormLabel>Helper Text (Optional)</FormLabel>
-                                <FormControl><Textarea placeholder="Additional instructions for this field" {...fieldProps} rows={2} /></FormControl>
+                                <FormControl><Textarea placeholder="Additional instructions for this field" {...fieldProps} rows={2} disabled={isSavingForm || isGenerating} /></FormControl>
                               </FormItem>
                             )}
                           />
@@ -360,12 +391,12 @@ export default function CreateFormPage() {
                                 name={`fields.${index}.required`}
                                 render={({ field: fieldProps }) => (
                                 <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                    <FormControl><Switch checked={fieldProps.value} onCheckedChange={fieldProps.onChange} /></FormControl>
+                                    <FormControl><Switch checked={fieldProps.value} onCheckedChange={fieldProps.onChange} disabled={isSavingForm || isGenerating} /></FormControl>
                                     <FormLabel className="font-normal">Required</FormLabel>
                                 </FormItem>
                                 )}
                             />
-                            <Button type="button" variant="destructive" onClick={() => remove(index)} size="sm">
+                            <Button type="button" variant="destructive" onClick={() => remove(index)} size="sm" disabled={isSavingForm || isGenerating}>
                               <Trash2 className="mr-2 h-4 w-4" /> Remove Field
                             </Button>
                           </div>
@@ -383,7 +414,7 @@ export default function CreateFormPage() {
 
             {/* Sidebar for AI Tools & Settings */}
             <div className="lg:col-span-1 space-y-6">
-              <Card className="shadow-sm">
+              <Card className="shadow-lg">
                 <CardHeader>
                   <CardTitle className="flex items-center"><Sparkles className="mr-2 h-5 w-5 text-primary" /> AI Question Generator</CardTitle>
                   <CardDescription>Enter a topic, or paste questions, to have AI add them directly to your form.</CardDescription>
@@ -401,12 +432,12 @@ export default function CreateFormPage() {
                     />
                   </div>
                   <Button onClick={handleGenerateQuestions} disabled={isGenerating || isSavingForm} className="w-full">
-                    <Wand2 className="mr-2 h-4 w-4" /> {isGenerating ? "Generating..." : "Generate & Add Questions"}
+                    {isGenerating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</> : <><Wand2 className="mr-2 h-4 w-4" /> Generate & Add Questions</>}
                   </Button>
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm">
+              <Card className="shadow-lg">
                 <CardHeader>
                   <CardTitle className="flex items-center"><Settings2 className="mr-2 h-5 w-5" /> Form Settings</CardTitle>
                 </CardHeader>
@@ -468,7 +499,7 @@ export default function CreateFormPage() {
               Reset Form
             </Button>
             <Button type="submit" size="lg" disabled={isSavingForm || isGenerating}>
-              {isSavingForm ? "Saving..." : <><PlusCircle className="mr-2 h-5 w-5" /> Save Form</>}
+               {isSavingForm ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Saving...</> : <><PlusCircle className="mr-2 h-5 w-5" /> Save Form</>}
             </Button>
           </div>
         </form>
