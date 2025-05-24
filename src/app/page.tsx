@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, LogIn, UserPlus, Edit3, BarChart3, Send } from "lucide-react";
@@ -90,8 +91,8 @@ export default function HomePage() {
                  <Image 
                     src="https://placehold.co/600x400.png" // Replace with a relevant image
                     alt="Feedback collection illustration"
-                    layout="fill"
-                    objectFit="cover"
+                    fill={true}
+                    style={{ objectFit: 'cover' }}
                     data-ai-hint="team collaboration"
                   />
               </div>
