@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Sparkles, LogIn, UserPlus, Edit3, BarChart3, Send } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function HomePage() {
   return (
@@ -87,14 +88,27 @@ export default function HomePage() {
                   <Link href="/signup">Create Your First Form</Link>
                 </Button>
               </div>
-              <div className="hidden md:block relative h-64 md:h-full">
-                 <Image 
-                    src="https://placehold.co/600x400.png" // Replace with a relevant image
-                    alt="Feedback collection illustration"
-                    fill={true}
-                    style={{ objectFit: 'cover' }}
-                    data-ai-hint="team collaboration"
-                  />
+              <div 
+                className="hidden md:flex items-center justify-center relative min-h-[250px] md:h-full bg-secondary/20 p-8" 
+                data-ai-hint="user community avatars"
+              >
+                <div className="flex items-center">
+                  <div className="flex -space-x-4">
+                    <Avatar className="w-16 h-16 border-2 border-background shadow-md">
+                      <AvatarImage src="https://placehold.co/80x80.png" alt="User 1" />
+                      <AvatarFallback>U1</AvatarFallback>
+                    </Avatar>
+                    <Avatar className="w-20 h-20 border-2 border-background z-10 transform scale-110 shadow-lg">
+                      <AvatarImage src="https://placehold.co/100x100.png" alt="User 2" />
+                      <AvatarFallback>U2</AvatarFallback>
+                    </Avatar>
+                    <Avatar className="w-16 h-16 border-2 border-background shadow-md">
+                      <AvatarImage src="https://placehold.co/80x80.png" alt="User 3" />
+                      <AvatarFallback>U3</AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <p className="ml-6 text-xl font-medium text-muted-foreground opacity-80">+ thousands more</p>
+                </div>
               </div>
             </div>
           </Card>
