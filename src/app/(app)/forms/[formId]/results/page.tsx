@@ -24,6 +24,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { useParams } from 'next/navigation'; // Import useParams
 
 const ratingChartConfig = {
   satisfaction: { label: "Satisfaction", color: "hsl(var(--chart-1))" },
@@ -37,9 +38,11 @@ const mockSentimentData = [
   { name: 'Negative', value: 0, fill: 'hsl(var(--chart-5))' },
 ];
 
+// Removed params from props, will use useParams hook
+export default function FormResultsPage() {
+  const paramsHook = useParams(); // Use the hook
+  const formId = paramsHook.formId as string; // Extract formId, ensure it's typed as string
 
-export default function FormResultsPage({ params }: { params: { formId: string } }) {
-  const { formId } = params; // Destructure formId here
   const { toast } = useToast();
   const [form, setForm] = useState<FormSchema | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
@@ -76,7 +79,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
   }, []);
 
   const prepareCsvData = useCallback((currentForm: FormSchema | null, fetchedResponses: FormResponse[]) => {
-    if (currentForm && fetchedResponses.length > 0) {
+    if (currentForm && currentForm.fields && fetchedResponses.length > 0) {
       const headers = currentForm.fields.map(field => ({ label: field.text, key: field.id }));
       headers.unshift({ label: "Response ID", key: "id" });
       headers.push({ label: "Submitted At", key: "timestamp" });
@@ -95,6 +98,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
   }, []);
 
   useEffect(() => {
+    // Ensure formId from useParams is available before proceeding
     if (!formId) {
       setIsLoading(false);
       toast({ title: "Error", description: "Form ID is missing.", variant: "destructive" });
@@ -173,7 +177,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
       unsubscribeForm();
       unsubscribeResponses();
     };
-  }, [formId, toast, calculateRatingDistribution, prepareCsvData]); // Added useCallback dependencies
+  }, [formId, toast, calculateRatingDistribution, prepareCsvData]); // formId is now from useParams
 
 
   const handleSummarizeFeedback = async () => {
@@ -385,7 +389,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[100px]">Response ID</TableHead>
-                      {form.fields.map(field => (
+                      {form && form.fields.map(field => (
                         <TableHead key={field.id}>{field.text}</TableHead>
                       ))}
                       <TableHead className="text-right w-[150px]">Submitted At</TableHead>
@@ -395,7 +399,7 @@ export default function FormResultsPage({ params }: { params: { formId: string }
                     {responses.map((response) => (
                       <TableRow key={response.id}>
                         <TableCell className="font-medium text-xs">{response.id.substring(0,8)}...</TableCell>
-                        {form.fields.map(field => (
+                        {form && form.fields.map(field => (
                           <TableCell key={field.id}>
                             {Array.isArray(response.answers[field.id]) 
                               ? (response.answers[field.id] as string[]).join(', ')
