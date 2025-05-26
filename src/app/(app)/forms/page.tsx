@@ -9,11 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, PlusCircle, Eye, Edit2, Trash2, Share2, BarChartHorizontalBig, FileText as FileTextIcon, Loader2, Copy, Star } from "lucide-react";
 import Link from "next/link";
-import type { FormSchema, QuestionSchema, FormFieldOption } from "@/types";
+import type { FormSchema, QuestionSchema, FormFieldOption, FormFieldType } from "@/types";
 import { db, auth } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, orderBy, Timestamp, deleteDoc, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Removed DialogTrigger as it's used via asChild
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -46,11 +46,12 @@ export default function FormsPage() {
   useEffect(() => {
     if (!currentUser) {
       setIsLoading(false);
-      setForms([]); // Clear forms if user logs out or isn't available
+      setForms([]); 
       return;
     }
 
     setIsLoading(true);
+    console.log("FormsPage: Setting up Firestore listener for user:", currentUser.uid);
     const q = query(
       collection(db, "surveys"),
       where("createdBy", "==", currentUser.uid),
@@ -69,44 +70,57 @@ export default function FormsPage() {
           id: docSnap.id,
           createdAt,
           updatedAt,
-          responseCount: data.responseCount || 0, // Assuming you might add a responseCount field
-          displayStatus: data.status || "Active", // Assuming 'status' field exists or default to Active
+          responseCount: data.responseCount || 0, 
+          displayStatus: data.status || "Active", 
           fields: data.fields as QuestionSchema[],
         } as DisplayFormSchema);
       });
+      console.log("FormsPage: Fetched forms:", fetchedForms.length);
       setForms(fetchedForms);
       setIsLoading(false);
     }, (error) => {
-      console.error("Error fetching forms: ", error);
-      toast({ title: "Error", description: "Could not fetch forms.", variant: "destructive" });
+      console.error("FormsPage: Error fetching forms: ", error);
+      toast({ title: "Error", description: "Could not fetch forms. Check console for details.", variant: "destructive" });
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log("FormsPage: Unsubscribing from Firestore listener.");
+      unsubscribe();
+    }
   }, [currentUser, toast]);
 
   const handleDeleteForm = async (formId: string) => {
-    console.log("Attempting to delete form with ID:", formId);
-    if (!currentUser) {
-      toast({ title: "Authentication Error", description: "You must be logged in to delete a form.", variant: "destructive" });
-      console.error("Delete attempt failed: User not authenticated.");
+    console.log(`Attempting to delete form with ID: [${formId}]`);
+
+    if (!formId || typeof formId !== 'string' || formId.trim() === "") {
+      toast({ title: "Error", description: "Invalid Form ID. Cannot delete.", variant: "destructive" });
+      console.error("handleDeleteForm: Invalid or missing formId.");
       return;
     }
-    console.log("Current user UID:", currentUser.uid);
 
-    if (!confirm("Are you sure you want to delete this form? This action cannot be undone.")) {
+    if (!currentUser) {
+      toast({ title: "Authentication Error", description: "You must be logged in to delete a form.", variant: "destructive" });
+      console.error("handleDeleteForm: User not authenticated at time of delete attempt.");
+      return;
+    }
+    console.log(`Current user UID for delete operation: [${currentUser.uid}]`);
+
+    if (!confirm(`Are you sure you want to delete this form (ID: ${formId})? This action cannot be undone.`)) {
       console.log("Form deletion cancelled by user.");
       return;
     }
+
     try {
-      console.log(`Proceeding with deletion of form ${formId} from surveys collection.`);
-      await deleteDoc(doc(db, "surveys", formId));
-      toast({ title: "Form Deleted", description: "The form has been successfully deleted." });
-      console.log(`Form ${formId} successfully deleted from Firestore.`);
-      // The onSnapshot listener should automatically update the UI by removing the form.
+      console.log(`Proceeding with deletion of form [${formId}] from surveys collection.`);
+      const formDocRef = doc(db, "surveys", formId);
+      await deleteDoc(formDocRef);
+      toast({ title: "Form Deleted", description: `Form "${formId}" has been successfully deleted.` });
+      console.log(`Form [${formId}] successfully deleted from Firestore.`);
+      // The onSnapshot listener should automatically update the UI.
     } catch (error) {
-      console.error("Error deleting form from Firestore:", error);
-      toast({ title: "Error", description: "Could not delete the form. Check console for details.", variant: "destructive" });
+      console.error(`Error deleting form [${formId}] from Firestore:`, error);
+      toast({ title: "Delete Error", description: "Could not delete the form. Check console for details. This might be due to Firestore security rules.", variant: "destructive" });
     }
   };
 
