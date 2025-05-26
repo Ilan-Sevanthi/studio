@@ -13,7 +13,7 @@ import type { FormSchema, QuestionSchema, FormFieldOption } from "@/types";
 import { db, auth } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, orderBy, Timestamp, deleteDoc, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Removed DialogTrigger as it's used via asChild
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 // Add a status field to FormSchema for UI display, if not directly in DB
 interface DisplayFormSchema extends FormSchema {
-  displayStatus?: 'Active' | 'Closed' | 'Draft'; 
+  displayStatus?: 'Active' | 'Closed' | 'Draft';
   responseCount?: number; // Placeholder for now
 }
 
@@ -37,7 +37,7 @@ export default function FormsPage() {
 
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [shareLink, setShareLink] = useState("");
-  const [selectedFormTitle, setSelectedFormTitle] = useState("");
+  const [selectedFormTitleForShare, setSelectedFormTitleForShare] = useState("");
 
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [selectedFormForPreview, setSelectedFormForPreview] = useState<DisplayFormSchema | null>(null);
@@ -46,28 +46,27 @@ export default function FormsPage() {
   useEffect(() => {
     if (!currentUser) {
       setIsLoading(false);
-      // Optionally, redirect to login or show a message if user is not authenticated
-      // For now, just stop loading and forms will be empty
+      setForms([]); // Clear forms if user logs out or isn't available
       return;
     }
 
     setIsLoading(true);
     const q = query(
-      collection(db, "surveys"), 
+      collection(db, "surveys"),
       where("createdBy", "==", currentUser.uid),
       orderBy("createdAt", "desc")
     );
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedForms: DisplayFormSchema[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
         const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : data.createdAt as string;
         const updatedAt = data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : data.updatedAt as string;
-        
+
         fetchedForms.push({
           ...data,
-          id: doc.id,
+          id: docSnap.id,
           createdAt,
           updatedAt,
           responseCount: data.responseCount || 0, // Assuming you might add a responseCount field
@@ -87,22 +86,34 @@ export default function FormsPage() {
   }, [currentUser, toast]);
 
   const handleDeleteForm = async (formId: string) => {
+    console.log("Attempting to delete form with ID:", formId);
+    if (!currentUser) {
+      toast({ title: "Authentication Error", description: "You must be logged in to delete a form.", variant: "destructive" });
+      console.error("Delete attempt failed: User not authenticated.");
+      return;
+    }
+    console.log("Current user UID:", currentUser.uid);
+
     if (!confirm("Are you sure you want to delete this form? This action cannot be undone.")) {
+      console.log("Form deletion cancelled by user.");
       return;
     }
     try {
+      console.log(`Proceeding with deletion of form ${formId} from surveys collection.`);
       await deleteDoc(doc(db, "surveys", formId));
       toast({ title: "Form Deleted", description: "The form has been successfully deleted." });
+      console.log(`Form ${formId} successfully deleted from Firestore.`);
+      // The onSnapshot listener should automatically update the UI by removing the form.
     } catch (error) {
-      console.error("Error deleting form: ", error);
-      toast({ title: "Error", description: "Could not delete the form.", variant: "destructive" });
+      console.error("Error deleting form from Firestore:", error);
+      toast({ title: "Error", description: "Could not delete the form. Check console for details.", variant: "destructive" });
     }
   };
 
   const handleShareForm = (formId: string, formTitle: string) => {
     const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
     setShareLink(`${currentOrigin}/forms/${formId}/respond`);
-    setSelectedFormTitle(formTitle);
+    setSelectedFormTitleForShare(formTitle);
     setIsShareDialogOpen(true);
   };
 
@@ -188,7 +199,7 @@ export default function FormsPage() {
                       <TableCell>{form.responseCount ?? 'N/A'}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          form.displayStatus === 'Active' ? 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--status-active-text))]' : 
+                          form.displayStatus === 'Active' ? 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--status-active-text))]' :
                           form.displayStatus === 'Closed' ? 'bg-[hsl(var(--destructive))]/20 text-[hsl(var(--status-closed-text))]' :
                           form.displayStatus === 'Draft' ? 'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--status-draft-text))]' :
                           'bg-muted text-muted-foreground'
@@ -239,7 +250,7 @@ export default function FormsPage() {
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Share Form: {selectedFormTitle}</DialogTitle>
+            <DialogTitle>Share Form: {selectedFormTitleForShare}</DialogTitle>
             <DialogDescription>
               Copy the link below to share your form with others.
             </DialogDescription>
@@ -259,24 +270,30 @@ export default function FormsPage() {
       {/* Preview Form Dialog */}
       {selectedFormForPreview && (
         <Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
-          <DialogContent className="sm:max-w-2xl shadow-xl"> {/* Added shadow-xl here for more emphasis */}
+          <DialogContent className="sm:max-w-2xl shadow-xl">
             <DialogHeader>
               <DialogTitle>Preview: {selectedFormForPreview.title}</DialogTitle>
               {selectedFormForPreview.description && <DialogDescription>{selectedFormForPreview.description}</DialogDescription>}
             </DialogHeader>
             <ScrollArea className="max-h-[70vh] p-1 pr-3 my-4">
               <div className="space-y-6 p-2">
-                {selectedFormForPreview.fields.map((field) => (
-                  <div key={field.id} className="p-4 border rounded-lg bg-card shadow-sm"> {/* Changed bg-muted/20 to bg-card and added shadow-sm */}
+                {selectedFormForPreview.fields.map((field, index) => (
+                  <div key={field.id || `preview-field-${index}`} className="p-4 border rounded-lg bg-card shadow-sm">
                     <Label className="font-semibold text-base text-card-foreground">{field.text} {field.required && <span className="text-destructive">*</span>}</Label>
                     {field.description && <p className="text-xs text-muted-foreground mb-2 mt-1">{field.description}</p>}
-                    
+
+                    {field.type === "pagebreak" && (
+                      <div className="my-4">
+                        <hr className="border-border" />
+                        {field.text && <p className="text-center text-sm text-muted-foreground mt-1">{field.text}</p>}
+                      </div>
+                    )}
                     {field.type === "text" && <Input type="text" placeholder={field.placeholder} disabled className="mt-1 bg-input/70" />}
                     {field.type === "email" && <Input type="email" placeholder={field.placeholder} disabled className="mt-1 bg-input/70" />}
                     {field.type === "number" && <Input type="number" placeholder={field.placeholder} disabled className="mt-1 bg-input/70" />}
                     {field.type === "textarea" && <Textarea placeholder={field.placeholder} disabled className="mt-1 bg-input/70" />}
                     {field.type === "date" && <Input type="date" disabled className="mt-1 bg-input/70" />}
-                    
+
                     {field.type === "rating" && (
                       <div className="flex space-x-1 mt-2">
                         {[...(Array(field.maxRating || 5).keys())].map(i => i + (field.minRating || 1)).map(starValue => (
@@ -284,7 +301,7 @@ export default function FormsPage() {
                         ))}
                       </div>
                     )}
-                    
+
                     {field.type === "select" && (
                       <Select disabled>
                         <SelectTrigger className="mt-1 bg-input/70">
@@ -295,7 +312,7 @@ export default function FormsPage() {
                         </SelectContent>
                       </Select>
                     )}
-                    
+
                     {field.type === "radio" && field.options && (
                       <RadioGroup disabled className="space-y-2 mt-2">
                         {field.options.map(opt => (
@@ -306,7 +323,7 @@ export default function FormsPage() {
                         ))}
                       </RadioGroup>
                     )}
-                    
+
                     {field.type === "checkbox" && field.options && (
                       <div className="space-y-2 mt-2">
                         {field.options.map(opt => (
@@ -341,5 +358,3 @@ export default function FormsPage() {
     </>
   );
 }
-
-    
