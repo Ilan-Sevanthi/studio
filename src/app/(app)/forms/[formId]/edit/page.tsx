@@ -9,11 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription as ShadcnFormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import * as z from "zod";
-import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain, Eye, Loader2, Star, Save } from "lucide-react";
+import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain, Eye, Loader2, Star, Save, FileTextIcon as PageBreakIcon } from "lucide-react";
 import { generateSurveyQuestions, GenerateSurveyQuestionsInput, SuggestedQuestion } from "@/ai/flows/generate-survey-questions";
 import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -22,17 +22,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
 import { db, auth } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import { useRouter, useParams } from "next/navigation"; // Import useParams
+import { useRouter, useParams } from "next/navigation";
 
 const formFieldSchema = z.object({
   id: z.string().default(() => `field_${Math.random().toString(36).substr(2, 9)}`),
   label: z.string().min(1, "Label is required"),
-  type: z.enum(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps"]),
+  type: z.enum(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps", "pagebreak"]),
   required: z.boolean().default(false),
   placeholder: z.string().optional(),
   options: z.array(z.object({ label: z.string().min(1), value: z.string().min(1) })).optional(),
   description: z.string().optional(),
-  // surveyId will be handled at the top level
 });
 
 const editFormSchemaValidation = z.object({
@@ -45,7 +44,7 @@ const editFormSchemaValidation = z.object({
 
 type EditFormValues = z.infer<typeof editFormSchemaValidation>;
 
-// FormPreview Component (as defined in create/page.tsx, adapted slightly if needed)
+// FormPreview Component
 function FormPreview({ formData }: { formData: Partial<EditFormValues> }) {
   if (!formData || !formData.fields) {
     return (
@@ -70,56 +69,66 @@ function FormPreview({ formData }: { formData: Partial<EditFormValues> }) {
       <CardContent className="space-y-4">
         {formData.fields.map((field, index) => (
           <div key={field.id || index} className="p-3 border rounded-md bg-muted/20">
-            <Label className="font-medium">{field.label} {field.required && <span className="text-destructive">*</span>}</Label>
-            {field.description && <p className="text-xs text-muted-foreground mb-1">{field.description}</p>}
-            {field.type === "text" && <Input type="text" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
-            {field.type === "email" && <Input type="email" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
-            {field.type === "number" && <Input type="number" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
-            {field.type === "textarea" && <Textarea placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
-            {field.type === "date" && <Input type="date" disabled className="mt-1 bg-background/50" />}
-            {field.type === "rating" && (
-              <div className="flex space-x-1 mt-1">
-                {[1, 2, 3, 4, 5].map(starValue => (
-                  <Star key={starValue} className="h-5 w-5 text-muted-foreground/50" />
-                ))}
-              </div>
-            )}
-            {field.type === "select" && (
-              <Select disabled>
-                <SelectTrigger className="mt-1 bg-background/50">
-                  <SelectValue placeholder={field.placeholder || "Select an option"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {field.options?.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
-            {field.type === "radio" && field.options && (
-              <div className="space-y-1 mt-1">
-                {field.options.map(opt => (
-                  <div key={opt.value} className="flex items-center space-x-2">
-                    <input type="radio" id={`${field.id}-${opt.value}`} value={opt.value} name={field.id} disabled />
-                    <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
-                  </div>
-                ))}
-              </div>
-            )}
-            {field.type === "checkbox" && field.options && (
-              <div className="space-y-1 mt-1">
-                {field.options.map(opt => (
-                  <div key={opt.value} className="flex items-center space-x-2">
-                    <input type="checkbox" id={`${field.id}-${opt.value}`} value={opt.value} disabled />
-                    <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
-                  </div>
-                ))}
-              </div>
-            )}
-             {field.type === "nps" && (
-                <div className="flex flex-wrap gap-1 mt-1">
-                    {[...Array(11).keys()].map(i => (
-                    <Button key={i} variant="outline" size="sm" disabled className="h-7 w-7 p-0">{i}</Button>
-                    ))}
+            {field.type === "pagebreak" ? (
+                 <div className="flex items-center space-x-2 py-2">
+                    <hr className="flex-grow border-border" />
+                    <span className="text-xs text-muted-foreground">{field.label || "Page Break"}</span>
+                    <hr className="flex-grow border-border" />
                 </div>
+            ) : (
+                <>
+                    <Label className="font-medium">{field.label} {field.required && <span className="text-destructive">*</span>}</Label>
+                    {field.description && <p className="text-xs text-muted-foreground mb-1">{field.description}</p>}
+                    {field.type === "text" && <Input type="text" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
+                    {field.type === "email" && <Input type="email" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
+                    {field.type === "number" && <Input type="number" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
+                    {field.type === "textarea" && <Textarea placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
+                    {field.type === "date" && <Input type="date" disabled className="mt-1 bg-background/50" />}
+                    {field.type === "rating" && (
+                    <div className="flex space-x-1 mt-1">
+                        {[1, 2, 3, 4, 5].map(starValue => (
+                        <Star key={starValue} className="h-5 w-5 text-muted-foreground/50" />
+                        ))}
+                    </div>
+                    )}
+                    {field.type === "select" && (
+                    <Select disabled>
+                        <SelectTrigger className="mt-1 bg-background/50">
+                        <SelectValue placeholder={field.placeholder || "Select an option"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                        {field.options?.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    )}
+                    {field.type === "radio" && field.options && (
+                    <div className="space-y-1 mt-1">
+                        {field.options.map(opt => (
+                        <div key={opt.value} className="flex items-center space-x-2">
+                            <input type="radio" id={`${field.id}-${opt.value}`} value={opt.value} name={field.id} disabled />
+                            <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
+                        </div>
+                        ))}
+                    </div>
+                    )}
+                    {field.type === "checkbox" && field.options && (
+                    <div className="space-y-1 mt-1">
+                        {field.options.map(opt => (
+                        <div key={opt.value} className="flex items-center space-x-2">
+                            <input type="checkbox" id={`${field.id}-${opt.value}`} value={opt.value} disabled />
+                            <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
+                        </div>
+                        ))}
+                    </div>
+                    )}
+                    {field.type === "nps" && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                            {[...Array(11).keys()].map(i => (
+                            <Button key={i} variant="outline" size="sm" disabled className="h-7 w-7 p-0">{i}</Button>
+                            ))}
+                        </div>
+                    )}
+                </>
             )}
           </div>
         ))}
@@ -131,7 +140,7 @@ function FormPreview({ formData }: { formData: Partial<EditFormValues> }) {
 
 export default function EditFormPage() {
   const params = useParams();
-  const formId = params.formId as string; // Extract formId from params
+  const formId = params.formId as string; 
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -204,7 +213,7 @@ export default function EditFormPage() {
             id: f.id,
             label: f.text, 
             type: f.type,
-            required: f.required || false,
+            required: f.type === "pagebreak" ? false : (f.required || false),
             placeholder: f.placeholder || "",
             options: f.options?.map(opt => ({ label: opt.label, value: opt.value })) || [],
             description: f.description || "",
@@ -279,7 +288,7 @@ export default function EditFormPage() {
         text: f.label,
         type: f.type as FormFieldType,
         options: f.options || [],
-        required: f.required,
+        required: f.type === "pagebreak" ? false : f.required,
         placeholder: f.placeholder || "",
         description: f.description || "",
       }));
@@ -396,8 +405,8 @@ export default function EditFormPage() {
                             name={`fields.${index}.label`}
                             render={({ field: fieldProps }) => (
                               <FormItem>
-                                <FormLabel>Field Label</FormLabel>
-                                <FormControl><Input placeholder="e.g., Your Name" {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
+                                <FormLabel>{form.watch(`fields.${index}.type`) === 'pagebreak' ? 'Page Break Label (Optional)' : 'Field Label'}</FormLabel>
+                                <FormControl><Input placeholder={form.watch(`fields.${index}.type`) === 'pagebreak' ? 'e.g., Section 2: Details' : "e.g., Your Name"} {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -415,13 +424,16 @@ export default function EditFormPage() {
                                   } else if (!form.getValues(`fields.${index}.options`)?.length) {
                                     form.setValue(`fields.${index}.options`, [{ label: "Option 1", value: "option_1" }]);
                                   }
+                                  if (value === 'pagebreak') {
+                                      form.setValue(`fields.${index}.label`, form.getValues(`fields.${index}.label`) || 'New Section');
+                                  }
                                 }}
                                 defaultValue={fieldProps.value}
                                 disabled={isSavingForm || isGenerating}
                                 >
                                   <FormControl><SelectTrigger><SelectValue placeholder="Select field type" /></SelectTrigger></FormControl>
                                   <SelectContent>
-                                    {(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps"] as FormFieldType[]).map(type => (
+                                    {(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps", "pagebreak"] as FormFieldType[]).map(type => (
                                       <SelectItem key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</SelectItem>
                                     ))}
                                   </SelectContent>
@@ -430,76 +442,80 @@ export default function EditFormPage() {
                               </FormItem>
                             )}
                           />
-                          {(form.watch(`fields.${index}.type`) === "select" || form.watch(`fields.${index}.type`) === "radio" || form.watch(`fields.${index}.type`) === "checkbox") && (
-                            <div className="space-y-2">
-                              <FormLabel>Options</FormLabel>
-                              {form.watch(`fields.${index}.options`)?.map((option, optIndex) => (
-                                <div key={optIndex} className="flex items-center gap-2">
-                                  <FormField
-                                    control={form.control}
-                                    name={`fields.${index}.options.${optIndex}.label`}
-                                    render={({ field: fieldProps }) => (
-                                      <Input placeholder="Option Label" {...fieldProps} className="flex-1" disabled={isSavingForm || isGenerating} />
-                                    )}
-                                  />
-                                  <FormField
-                                    control={form.control}
-                                    name={`fields.${index}.options.${optIndex}.value`}
-                                    render={({ field: fieldProps }) => (
-                                      <Input placeholder="Option Value (auto-if-blank)" {...fieldProps} className="flex-1" 
-                                        disabled={isSavingForm || isGenerating}
-                                        onBlur={(e) => { 
-                                          const label = form.getValues(`fields.${index}.options.${optIndex}.label`);
-                                          if (label && !e.target.value) {
-                                            fieldProps.onChange(label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
-                                          } else {
-                                            fieldProps.onChange(e.target.value);
-                                          }
-                                        }}
+                          {form.watch(`fields.${index}.type`) !== 'pagebreak' && (
+                            <>
+                              {(form.watch(`fields.${index}.type`) === "select" || form.watch(`fields.${index}.type`) === "radio" || form.watch(`fields.${index}.type`) === "checkbox") && (
+                                <div className="space-y-2">
+                                  <FormLabel>Options</FormLabel>
+                                  {form.watch(`fields.${index}.options`)?.map((option, optIndex) => (
+                                    <div key={optIndex} className="flex items-center gap-2">
+                                      <FormField
+                                        control={form.control}
+                                        name={`fields.${index}.options.${optIndex}.label`}
+                                        render={({ field: fieldProps }) => (
+                                          <Input placeholder="Option Label" {...fieldProps} className="flex-1" disabled={isSavingForm || isGenerating} />
+                                        )}
                                       />
-                                    )}
-                                  />
-                                  <Button type="button" variant="ghost" size="icon" onClick={() => removeFieldOption(index, optIndex)} disabled={isSavingForm || isGenerating}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                      <FormField
+                                        control={form.control}
+                                        name={`fields.${index}.options.${optIndex}.value`}
+                                        render={({ field: fieldProps }) => (
+                                          <Input placeholder="Option Value (auto-if-blank)" {...fieldProps} className="flex-1" 
+                                            disabled={isSavingForm || isGenerating}
+                                            onBlur={(e) => { 
+                                              const label = form.getValues(`fields.${index}.options.${optIndex}.label`);
+                                              if (label && !e.target.value) {
+                                                fieldProps.onChange(label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
+                                              } else {
+                                                fieldProps.onChange(e.target.value);
+                                              }
+                                            }}
+                                          />
+                                        )}
+                                      />
+                                      <Button type="button" variant="ghost" size="icon" onClick={() => removeFieldOption(index, optIndex)} disabled={isSavingForm || isGenerating}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                  <Button type="button" variant="outline" size="sm" onClick={() => addFieldOption(index)} disabled={isSavingForm || isGenerating}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Add Option
                                   </Button>
                                 </div>
-                              ))}
-                              <Button type="button" variant="outline" size="sm" onClick={() => addFieldOption(index)} disabled={isSavingForm || isGenerating}>
-                                <PlusCircle className="mr-2 h-4 w-4" /> Add Option
-                              </Button>
-                            </div>
-                          )}
-                           <FormField
-                            control={form.control}
-                            name={`fields.${index}.placeholder`}
-                            render={({ field: fieldProps }) => (
-                              <FormItem>
-                                <FormLabel>Placeholder (Optional)</FormLabel>
-                                <FormControl><Input placeholder="e.g., Enter your feedback here" {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`fields.${index}.description`}
-                            render={({ field: fieldProps }) => (
-                              <FormItem>
-                                <FormLabel>Helper Text (Optional)</FormLabel>
-                                <FormControl><Textarea placeholder="Additional instructions for this field" {...fieldProps} rows={2} disabled={isSavingForm || isGenerating} /></FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <div className="flex items-center justify-between">
-                             <FormField
+                              )}
+                              <FormField
                                 control={form.control}
-                                name={`fields.${index}.required`}
+                                name={`fields.${index}.placeholder`}
                                 render={({ field: fieldProps }) => (
-                                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                    <FormControl><Switch checked={fieldProps.value} onCheckedChange={fieldProps.onChange} disabled={isSavingForm || isGenerating} /></FormControl>
-                                    <FormLabel className="font-normal">Required</FormLabel>
-                                </FormItem>
+                                  <FormItem>
+                                    <FormLabel>Placeholder (Optional)</FormLabel>
+                                    <FormControl><Input placeholder="e.g., Enter your feedback here" {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
+                                  </FormItem>
                                 )}
-                            />
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`fields.${index}.description`}
+                                render={({ field: fieldProps }) => (
+                                  <FormItem>
+                                    <FormLabel>Helper Text (Optional)</FormLabel>
+                                    <FormControl><Textarea placeholder="Additional instructions for this field" {...fieldProps} rows={2} disabled={isSavingForm || isGenerating} /></FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                    control={form.control}
+                                    name={`fields.${index}.required`}
+                                    render={({ field: fieldProps }) => (
+                                    <FormItem className="flex flex-row items-center space-x-2 space-y-0 pt-2">
+                                        <FormControl><Switch checked={fieldProps.value} onCheckedChange={fieldProps.onChange} disabled={isSavingForm || isGenerating} /></FormControl>
+                                        <FormLabel className="font-normal">Required</FormLabel>
+                                    </FormItem>
+                                    )}
+                                />
+                            </>
+                          )}
+                          <div className="flex items-center justify-end pt-2">
                             <Button type="button" variant="destructive" onClick={() => remove(index)} size="sm" disabled={isSavingForm || isGenerating}>
                               <Trash2 className="mr-2 h-4 w-4" /> Remove Field
                             </Button>
@@ -509,21 +525,32 @@ export default function EditFormPage() {
                     </Accordion>
                   ))}
                   </ScrollArea>
-                  <Button type="button" variant="outline" onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "", type: "text", required: false, options: [] })} className="w-full mt-4" disabled={isSavingForm || isGenerating}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Field
-                  </Button>
+                  <div className="flex gap-2 mt-4">
+                    <Button type="button" variant="outline" onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "", type: "text", required: false, options: [] })} className="w-full" disabled={isSavingForm || isGenerating}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add New Field
+                    </Button>
+                     <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "New Section", type: "pagebreak", required: false })} 
+                        className="w-full" 
+                        disabled={isSavingForm || isGenerating}
+                    >
+                        <PageBreakIcon className="mr-2 h-4 w-4" /> Add Page Break
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </div>
             
             {/* Right Column: Preview, AI Tools & Settings */}
             <div className="lg:col-span-1 space-y-6">
-              <Card className="shadow-lg sticky top-20"> {/* Added sticky for preview */}
+              <Card className="shadow-lg sticky top-20"> 
                 <CardHeader>
                   <CardTitle className="flex items-center"><Eye className="mr-2 h-5 w-5 text-primary" /> Live Form Preview</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[calc(100vh-20rem)] max-h-[500px]"> {/* Constrained height and scrollable */}
+                  <ScrollArea className="h-[calc(100vh-20rem)] max-h-[500px]"> 
                     <FormPreview formData={watchedFormData} />
                   </ScrollArea>
                 </CardContent>
@@ -564,9 +591,9 @@ export default function EditFormPage() {
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
                           <FormLabel>Anonymous Responses</FormLabel>
-                          <FormDescription>
+                          <ShadcnFormDescription>
                             Collect responses without identifying users.
-                          </FormDescription>
+                          </ShadcnFormDescription>
                         </div>
                         <FormControl>
                           <Switch
@@ -585,9 +612,9 @@ export default function EditFormPage() {
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
                           <FormLabel className="flex items-center"><Brain className="mr-2 h-4 w-4" /> AI Mode</FormLabel>
-                          <FormDescription>
+                          <ShadcnFormDescription>
                             Control AI behavior for this form.
-                          </FormDescription>
+                          </ShadcnFormDescription>
                         </div>
                         <FormControl>
                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSavingForm || isGenerating}>

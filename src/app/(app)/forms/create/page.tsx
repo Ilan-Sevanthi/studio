@@ -9,34 +9,33 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription as ShadcnFormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
-import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain, Eye, Loader2 } from "lucide-react";
+import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain, Eye, Loader2, FileTextIcon as PageBreakIcon } from "lucide-react";
 import { generateSurveyQuestions, GenerateSurveyQuestionsInput, SuggestedQuestion } from "@/ai/flows/generate-survey-questions";
 import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import type { FormFieldOption, FormFieldType, FormSchema as AppFormSchema, QuestionSchema } from "@/types"; // Renamed FormSchema to AppFormSchema to avoid conflict
+import type { FormFieldOption, FormFieldType, FormSchema as AppFormSchema, QuestionSchema } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
 import { db, auth } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 
 const formFieldSchema = z.object({
   id: z.string().default(() => `field_${Math.random().toString(36).substr(2, 9)}`),
-  // surveyId is not part of field schema for form creation, it's part of QuestionSchema for DB
-  label: z.string().min(1, "Label is required"), // Will be mapped to QuestionSchema.text
-  type: z.enum(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps"]),
+  label: z.string().min(1, "Label is required"),
+  type: z.enum(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps", "pagebreak"]),
   required: z.boolean().default(false),
   placeholder: z.string().optional(),
   options: z.array(z.object({ label: z.string().min(1), value: z.string().min(1) })).optional(),
   description: z.string().optional(),
 });
 
-const createFormSchemaValidation = z.object({ // Renamed for clarity, this is for validation
+const createFormSchemaValidation = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
   description: z.string().optional(),
   fields: z.array(formFieldSchema).min(1, "Add at least one field"),
@@ -45,6 +44,99 @@ const createFormSchemaValidation = z.object({ // Renamed for clarity, this is fo
 });
 
 type CreateFormValues = z.infer<typeof createFormSchemaValidation>;
+
+// FormPreview Component
+function FormPreview({ formData }: { formData: Partial<CreateFormValues> }) {
+  if (!formData || !formData.fields) {
+    return (
+      <Card className="shadow-inner border-dashed">
+        <CardHeader>
+          <CardTitle>Form Preview</CardTitle>
+          <CardDescription>Preview will appear here as you build.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground text-sm">Start adding fields to see your form.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="shadow-inner">
+      <CardHeader>
+        <CardTitle>{formData.title || "Untitled Form"}</CardTitle>
+        {formData.description && <CardDescription>{formData.description}</CardDescription>}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {formData.fields.map((field, index) => (
+          <div key={field.id || index} className="p-3 border rounded-md bg-muted/20">
+            {field.type === "pagebreak" ? (
+                <div className="flex items-center space-x-2 py-2">
+                    <hr className="flex-grow border-border" />
+                    <span className="text-xs text-muted-foreground">{field.label || "Page Break"}</span>
+                    <hr className="flex-grow border-border" />
+                </div>
+            ) : (
+                <>
+                    <Label className="font-medium">{field.label} {field.required && <span className="text-destructive">*</span>}</Label>
+                    {field.description && <p className="text-xs text-muted-foreground mb-1">{field.description}</p>}
+                    {field.type === "text" && <Input type="text" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
+                    {field.type === "email" && <Input type="email" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
+                    {field.type === "number" && <Input type="number" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
+                    {field.type === "textarea" && <Textarea placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
+                    {field.type === "date" && <Input type="date" disabled className="mt-1 bg-background/50" />}
+                    {field.type === "rating" && (
+                    <div className="flex space-x-1 mt-1">
+                        {[1, 2, 3, 4, 5].map(starValue => (
+                        <Star key={starValue} className="h-5 w-5 text-muted-foreground/50" />
+                        ))}
+                    </div>
+                    )}
+                    {field.type === "select" && (
+                    <Select disabled>
+                        <SelectTrigger className="mt-1 bg-background/50">
+                        <SelectValue placeholder={field.placeholder || "Select an option"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                        {field.options?.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    )}
+                    {field.type === "radio" && field.options && (
+                    <div className="space-y-1 mt-1">
+                        {field.options.map(opt => (
+                        <div key={opt.value} className="flex items-center space-x-2">
+                            <input type="radio" id={`${field.id}-${opt.value}`} value={opt.value} name={field.id} disabled />
+                            <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
+                        </div>
+                        ))}
+                    </div>
+                    )}
+                    {field.type === "checkbox" && field.options && (
+                    <div className="space-y-1 mt-1">
+                        {field.options.map(opt => (
+                        <div key={opt.value} className="flex items-center space-x-2">
+                            <input type="checkbox" id={`${field.id}-${opt.value}`} value={opt.value} disabled />
+                            <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
+                        </div>
+                        ))}
+                    </div>
+                    )}
+                    {field.type === "nps" && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                            {[...Array(11).keys()].map(i => (
+                            <Button key={i} variant="outline" size="sm" disabled className="h-7 w-7 p-0">{i}</Button>
+                            ))}
+                        </div>
+                    )}
+                </>
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
 const ensureOptionValues = (options?: SuggestedQuestion['options']): FormFieldOption[] => {
   if (!options || options.length === 0) return [];
@@ -69,50 +161,45 @@ const ensureOptionValues = (options?: SuggestedQuestion['options']): FormFieldOp
 async function saveFormToBackend(formData: CreateFormValues, userId: string): Promise<AppFormSchema> {
   console.log("Attempting to save form to Firestore:", formData);
   
-  // Map form builder fields to QuestionSchema for Firestore
   const questionsForDb: QuestionSchema[] = formData.fields.map(f => ({
-    id: f.id || `field_db_${Math.random().toString(36).substr(2, 9)}`, // Ensure field ID for DB
-    surveyId: "", // This will be set after the survey doc is created, or handled by backend if questions are subcollection
+    id: f.id || `field_db_${Math.random().toString(36).substr(2, 9)}`, 
+    surveyId: "", 
     text: f.label, 
     type: f.type as FormFieldType,
     options: f.options || [],
-    required: f.required,
+    required: f.type === "pagebreak" ? false : f.required, // Page breaks are not 'required' in a validation sense
     placeholder: f.placeholder || "",
     description: f.description || "",
-    // AI related fields can be added here if needed by default
   }));
 
   const surveyDataForDb = {
     title: formData.title,
     description: formData.description || "",
-    fields: questionsForDb, // Storing questions embedded in the survey document for simplicity
+    fields: questionsForDb, 
     createdBy: userId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    createdAt: serverTimestamp() as Timestamp,
+    updatedAt: serverTimestamp() as Timestamp,
     isAnonymous: formData.isAnonymous,
     aiMode: formData.aiMode as "dynamic" | "assisted_creation" | "none",
-    // status: "Draft" // Example default status
   };
 
   try {
     const docRef = await addDoc(collection(db, "surveys"), surveyDataForDb);
     console.log("Form saved with ID: ", docRef.id);
     
-    // Construct the returned AppFormSchema
-    // For fields, map back with surveyId. In a real scenario, if questions were a subcollection, this would be different.
     const savedFields = questionsForDb.map(q => ({ ...q, surveyId: docRef.id }));
     
     return {
       id: docRef.id,
       ...surveyDataForDb,
-      fields: savedFields, // Use the fields array that now has surveyId potentially
-      createdAt: new Date().toISOString(), // Approximate, serverTimestamp will be accurate in DB
-      updatedAt: new Date().toISOString(), // Approximate
+      fields: savedFields, 
+      createdAt: new Date().toISOString(), 
+      updatedAt: new Date().toISOString(), 
     } as AppFormSchema;
 
   } catch (error) {
     console.error("Error saving form to Firestore:", error);
-    throw error; // Re-throw to be caught by onSubmit
+    throw error;
   }
 }
 
@@ -135,6 +222,8 @@ export default function CreateFormPage() {
       aiMode: "assisted_creation",
     },
   });
+  
+  const watchedFormData = form.watch(); // Watch all form data for live preview
 
   const { fields, append, remove, move } = useFieldArray({
     control: form.control,
@@ -187,17 +276,16 @@ export default function CreateFormPage() {
         title: "Form Created Successfully!",
         description: (
             <>
-              Your form "{savedForm.title}" has been saved to the database.
-              <Link href={`/forms/${savedForm.id}/respond`} target="_blank" className="underline ml-1 font-semibold hover:text-primary">
+              Your form "{savedForm.title}" has been saved.
+              <Link href={`/forms/${savedForm.id}/respond`} target="_blank" rel="noopener noreferrer" className="underline ml-1 font-semibold hover:text-primary">
                 Preview it here.
               </Link>
             </>
           ),
         duration: 7000,
       });
-      // Optionally redirect or clear form
-      form.reset(); // Clear the form for a new entry
-      router.push("/forms"); // Redirect to the forms list page
+      form.reset(); 
+      router.push("/forms"); 
     } catch (error) {
       console.error("Error saving form:", error);
       toast({ title: "Save Error", description: "Could not save the form to the database.", variant: "destructive" });
@@ -212,8 +300,8 @@ export default function CreateFormPage() {
   };
 
   const removeFieldOption = (fieldIndex: number, optionIndex: number) => {
-    const currentOptions = form.getValues(`fields.${index}.options`) || [];
-    form.setValue(`fields.${index}.options`, currentOptions.filter((_, i) => i !== optionIndex));
+    const currentOptions = form.getValues(`fields.${fieldIndex}.options`) || [];
+    form.setValue(`fields.${fieldIndex}.options`, currentOptions.filter((_, i) => i !== optionIndex));
   };
 
 
@@ -292,8 +380,8 @@ export default function CreateFormPage() {
                             name={`fields.${index}.label`}
                             render={({ field: fieldProps }) => (
                               <FormItem>
-                                <FormLabel>Field Label</FormLabel>
-                                <FormControl><Input placeholder="e.g., Your Name" {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
+                                <FormLabel>{form.watch(`fields.${index}.type`) === 'pagebreak' ? 'Page Break Label (Optional)' : 'Field Label'}</FormLabel>
+                                <FormControl><Input placeholder={form.watch(`fields.${index}.type`) === 'pagebreak' ? 'e.g., Section 2: Details' : "e.g., Your Name"} {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
                                 <FormMessage />
                               </FormItem>
                             )}
@@ -311,13 +399,16 @@ export default function CreateFormPage() {
                                   } else if (!form.getValues(`fields.${index}.options`)?.length) {
                                     form.setValue(`fields.${index}.options`, [{ label: "Option 1", value: "option_1" }]);
                                   }
+                                  if (value === 'pagebreak') {
+                                      form.setValue(`fields.${index}.label`, form.getValues(`fields.${index}.label`) || 'New Section');
+                                  }
                                 }}
                                 defaultValue={fieldProps.value}
                                 disabled={isSavingForm || isGenerating}
                                 >
                                   <FormControl><SelectTrigger><SelectValue placeholder="Select field type" /></SelectTrigger></FormControl>
                                   <SelectContent>
-                                    {(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps"] as FormFieldType[]).map(type => (
+                                    {(["text", "textarea", "select", "radio", "checkbox", "rating", "date", "email", "number", "nps", "pagebreak"] as FormFieldType[]).map(type => (
                                       <SelectItem key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</SelectItem>
                                     ))}
                                   </SelectContent>
@@ -326,76 +417,80 @@ export default function CreateFormPage() {
                               </FormItem>
                             )}
                           />
-                          {(form.watch(`fields.${index}.type`) === "select" || form.watch(`fields.${index}.type`) === "radio" || form.watch(`fields.${index}.type`) === "checkbox") && (
-                            <div className="space-y-2">
-                              <FormLabel>Options</FormLabel>
-                              {form.watch(`fields.${index}.options`)?.map((option, optIndex) => (
-                                <div key={optIndex} className="flex items-center gap-2">
-                                  <FormField
-                                    control={form.control}
-                                    name={`fields.${index}.options.${optIndex}.label`}
-                                    render={({ field: fieldProps }) => (
-                                      <Input placeholder="Option Label" {...fieldProps} className="flex-1" disabled={isSavingForm || isGenerating} />
-                                    )}
-                                  />
-                                  <FormField
-                                    control={form.control}
-                                    name={`fields.${index}.options.${optIndex}.value`}
-                                    render={({ field: fieldProps }) => (
-                                      <Input placeholder="Option Value (auto-if-blank)" {...fieldProps} className="flex-1" 
-                                        disabled={isSavingForm || isGenerating}
-                                        onBlur={(e) => { 
-                                          const label = form.getValues(`fields.${index}.options.${optIndex}.label`);
-                                          if (label && !e.target.value) {
-                                            fieldProps.onChange(label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
-                                          } else {
-                                            fieldProps.onChange(e.target.value);
-                                          }
-                                        }}
+                          {form.watch(`fields.${index}.type`) !== 'pagebreak' && (
+                            <>
+                              {(form.watch(`fields.${index}.type`) === "select" || form.watch(`fields.${index}.type`) === "radio" || form.watch(`fields.${index}.type`) === "checkbox") && (
+                                <div className="space-y-2">
+                                  <FormLabel>Options</FormLabel>
+                                  {form.watch(`fields.${index}.options`)?.map((option, optIndex) => (
+                                    <div key={optIndex} className="flex items-center gap-2">
+                                      <FormField
+                                        control={form.control}
+                                        name={`fields.${index}.options.${optIndex}.label`}
+                                        render={({ field: fieldProps }) => (
+                                          <Input placeholder="Option Label" {...fieldProps} className="flex-1" disabled={isSavingForm || isGenerating} />
+                                        )}
                                       />
-                                    )}
-                                  />
-                                  <Button type="button" variant="ghost" size="icon" onClick={() => removeFieldOption(index, optIndex)} disabled={isSavingForm || isGenerating}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                      <FormField
+                                        control={form.control}
+                                        name={`fields.${index}.options.${optIndex}.value`}
+                                        render={({ field: fieldProps }) => (
+                                          <Input placeholder="Option Value (auto-if-blank)" {...fieldProps} className="flex-1" 
+                                            disabled={isSavingForm || isGenerating}
+                                            onBlur={(e) => { 
+                                              const label = form.getValues(`fields.${index}.options.${optIndex}.label`);
+                                              if (label && !e.target.value) {
+                                                fieldProps.onChange(label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
+                                              } else {
+                                                fieldProps.onChange(e.target.value);
+                                              }
+                                            }}
+                                          />
+                                        )}
+                                      />
+                                      <Button type="button" variant="ghost" size="icon" onClick={() => removeFieldOption(index, optIndex)} disabled={isSavingForm || isGenerating}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                  <Button type="button" variant="outline" size="sm" onClick={() => addFieldOption(index)} disabled={isSavingForm || isGenerating}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Add Option
                                   </Button>
                                 </div>
-                              ))}
-                              <Button type="button" variant="outline" size="sm" onClick={() => addFieldOption(index)} disabled={isSavingForm || isGenerating}>
-                                <PlusCircle className="mr-2 h-4 w-4" /> Add Option
-                              </Button>
-                            </div>
-                          )}
-                           <FormField
-                            control={form.control}
-                            name={`fields.${index}.placeholder`}
-                            render={({ field: fieldProps }) => (
-                              <FormItem>
-                                <FormLabel>Placeholder (Optional)</FormLabel>
-                                <FormControl><Input placeholder="e.g., Enter your feedback here" {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`fields.${index}.description`}
-                            render={({ field: fieldProps }) => (
-                              <FormItem>
-                                <FormLabel>Helper Text (Optional)</FormLabel>
-                                <FormControl><Textarea placeholder="Additional instructions for this field" {...fieldProps} rows={2} disabled={isSavingForm || isGenerating} /></FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <div className="flex items-center justify-between">
-                             <FormField
+                              )}
+                              <FormField
                                 control={form.control}
-                                name={`fields.${index}.required`}
+                                name={`fields.${index}.placeholder`}
                                 render={({ field: fieldProps }) => (
-                                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                                    <FormControl><Switch checked={fieldProps.value} onCheckedChange={fieldProps.onChange} disabled={isSavingForm || isGenerating} /></FormControl>
-                                    <FormLabel className="font-normal">Required</FormLabel>
-                                </FormItem>
+                                  <FormItem>
+                                    <FormLabel>Placeholder (Optional)</FormLabel>
+                                    <FormControl><Input placeholder="e.g., Enter your feedback here" {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
+                                  </FormItem>
                                 )}
-                            />
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`fields.${index}.description`}
+                                render={({ field: fieldProps }) => (
+                                  <FormItem>
+                                    <FormLabel>Helper Text (Optional)</FormLabel>
+                                    <FormControl><Textarea placeholder="Additional instructions for this field" {...fieldProps} rows={2} disabled={isSavingForm || isGenerating} /></FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                               <FormField
+                                  control={form.control}
+                                  name={`fields.${index}.required`}
+                                  render={({ field: fieldProps }) => (
+                                  <FormItem className="flex flex-row items-center space-x-2 space-y-0 pt-2">
+                                      <FormControl><Switch checked={fieldProps.value} onCheckedChange={fieldProps.onChange} disabled={isSavingForm || isGenerating} /></FormControl>
+                                      <FormLabel className="font-normal">Required</FormLabel>
+                                  </FormItem>
+                                  )}
+                              />
+                            </>
+                          )}
+                          <div className="flex items-center justify-end pt-2">
                             <Button type="button" variant="destructive" onClick={() => remove(index)} size="sm" disabled={isSavingForm || isGenerating}>
                               <Trash2 className="mr-2 h-4 w-4" /> Remove Field
                             </Button>
@@ -405,15 +500,37 @@ export default function CreateFormPage() {
                     </Accordion>
                   ))}
                   </ScrollArea>
-                  <Button type="button" variant="outline" onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "", type: "text", required: false, options: [] })} className="w-full mt-4" disabled={isSavingForm || isGenerating}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add New Field
-                  </Button>
+                  <div className="flex gap-2 mt-4">
+                    <Button type="button" variant="outline" onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "", type: "text", required: false, options: [] })} className="w-full" disabled={isSavingForm || isGenerating}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add New Field
+                    </Button>
+                    <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "New Section", type: "pagebreak", required: false })} 
+                        className="w-full" 
+                        disabled={isSavingForm || isGenerating}
+                    >
+                        <PageBreakIcon className="mr-2 h-4 w-4" /> Add Page Break
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </div>
 
             {/* Sidebar for AI Tools & Settings */}
             <div className="lg:col-span-1 space-y-6">
+              <Card className="shadow-lg sticky top-20"> 
+                <CardHeader>
+                  <CardTitle className="flex items-center"><Eye className="mr-2 h-5 w-5 text-primary" /> Live Form Preview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[calc(100vh-20rem)] max-h-[500px]"> 
+                    <FormPreview formData={watchedFormData} />
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+
               <Card className="shadow-lg">
                 <CardHeader>
                   <CardTitle className="flex items-center"><Sparkles className="mr-2 h-5 w-5 text-primary" /> AI Question Generator</CardTitle>
@@ -449,9 +566,9 @@ export default function CreateFormPage() {
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
                           <FormLabel>Anonymous Responses</FormLabel>
-                          <FormDescription>
+                          <ShadcnFormDescription>
                             Collect responses without identifying users.
-                          </FormDescription>
+                          </ShadcnFormDescription>
                         </div>
                         <FormControl>
                           <Switch
@@ -470,9 +587,9 @@ export default function CreateFormPage() {
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
                           <FormLabel className="flex items-center"><Brain className="mr-2 h-4 w-4" /> AI Mode</FormLabel>
-                          <FormDescription>
+                          <ShadcnFormDescription>
                             Control AI behavior for this form.
-                          </FormDescription>
+                          </ShadcnFormDescription>
                         </div>
                         <FormControl>
                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isSavingForm || isGenerating}>
@@ -507,3 +624,4 @@ export default function CreateFormPage() {
     </div>
   );
 }
+
