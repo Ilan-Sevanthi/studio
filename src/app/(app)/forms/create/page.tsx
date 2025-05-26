@@ -13,7 +13,7 @@ import { Form, FormControl, FormDescription as ShadcnFormDescription, FormField,
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
-import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain, Eye, Loader2, FileTextIcon as PageBreakIcon } from "lucide-react";
+import { PlusCircle, Trash2, Sparkles, Wand2, Settings2, X, ChevronDown, ChevronUp, GripVertical, Brain, Eye, Loader2, FileTextIcon as PageBreakIcon, Star } from "lucide-react";
 import { generateSurveyQuestions, GenerateSurveyQuestionsInput, SuggestedQuestion } from "@/ai/flows/generate-survey-questions";
 import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -73,7 +73,7 @@ function FormPreview({ formData }: { formData: Partial<CreateFormValues> }) {
             {field.type === "pagebreak" ? (
                 <div className="flex items-center space-x-2 py-2">
                     <hr className="flex-grow border-border" />
-                    <span className="text-xs text-muted-foreground">{field.label || "Page Break"}</span>
+                    <span className="text-xs text-muted-foreground">{field.label || "Next Page"}</span>
                     <hr className="flex-grow border-border" />
                 </div>
             ) : (
@@ -167,7 +167,7 @@ async function saveFormToBackend(formData: CreateFormValues, userId: string): Pr
     text: f.label, 
     type: f.type as FormFieldType,
     options: f.options || [],
-    required: f.type === "pagebreak" ? false : f.required, // Page breaks are not 'required' in a validation sense
+    required: f.type === "pagebreak" ? false : f.required, 
     placeholder: f.placeholder || "",
     description: f.description || "",
   }));
@@ -359,7 +359,7 @@ export default function CreateFormPage() {
               <Card className="shadow-lg">
                 <CardHeader>
                   <CardTitle>Form Fields</CardTitle>
-                  <CardDescription>Add and configure questions for your form. </CardDescription>
+                  <CardDescription>Add and configure questions for your form. Drag to reorder.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[400px] pr-3">
@@ -380,7 +380,7 @@ export default function CreateFormPage() {
                             name={`fields.${index}.label`}
                             render={({ field: fieldProps }) => (
                               <FormItem>
-                                <FormLabel>{form.watch(`fields.${index}.type`) === 'pagebreak' ? 'Page Break Label (Optional)' : 'Field Label'}</FormLabel>
+                                <FormLabel>{form.watch(`fields.${index}.type`) === 'pagebreak' ? 'New Page Label (Optional)' : 'Field Label'}</FormLabel>
                                 <FormControl><Input placeholder={form.watch(`fields.${index}.type`) === 'pagebreak' ? 'e.g., Section 2: Details' : "e.g., Your Name"} {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -400,7 +400,7 @@ export default function CreateFormPage() {
                                     form.setValue(`fields.${index}.options`, [{ label: "Option 1", value: "option_1" }]);
                                   }
                                   if (value === 'pagebreak') {
-                                      form.setValue(`fields.${index}.label`, form.getValues(`fields.${index}.label`) || 'New Section');
+                                      form.setValue(`fields.${index}.label`, form.getValues(`fields.${index}.label`) || 'Next Page');
                                   }
                                 }}
                                 defaultValue={fieldProps.value}
@@ -507,11 +507,11 @@ export default function CreateFormPage() {
                     <Button 
                         type="button" 
                         variant="outline" 
-                        onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "New Section", type: "pagebreak", required: false })} 
+                        onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "Next Page", type: "pagebreak", required: false })} 
                         className="w-full" 
                         disabled={isSavingForm || isGenerating}
                     >
-                        <PageBreakIcon className="mr-2 h-4 w-4" /> Add Page Break
+                        <PageBreakIcon className="mr-2 h-4 w-4" /> Add New Page
                     </Button>
                   </div>
                 </CardContent>

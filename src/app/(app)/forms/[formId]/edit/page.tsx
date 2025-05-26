@@ -72,7 +72,7 @@ function FormPreview({ formData }: { formData: Partial<EditFormValues> }) {
             {field.type === "pagebreak" ? (
                  <div className="flex items-center space-x-2 py-2">
                     <hr className="flex-grow border-border" />
-                    <span className="text-xs text-muted-foreground">{field.label || "Page Break"}</span>
+                    <span className="text-xs text-muted-foreground">{field.label || "Next Page"}</span>
                     <hr className="flex-grow border-border" />
                 </div>
             ) : (
@@ -384,7 +384,7 @@ export default function EditFormPage() {
               <Card className="shadow-lg">
                 <CardHeader>
                   <CardTitle>Form Fields</CardTitle>
-                  <CardDescription>Modify questions for your form. </CardDescription>
+                  <CardDescription>Modify questions for your form. Drag to reorder. </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[400px] pr-3">
@@ -405,7 +405,7 @@ export default function EditFormPage() {
                             name={`fields.${index}.label`}
                             render={({ field: fieldProps }) => (
                               <FormItem>
-                                <FormLabel>{form.watch(`fields.${index}.type`) === 'pagebreak' ? 'Page Break Label (Optional)' : 'Field Label'}</FormLabel>
+                                <FormLabel>{form.watch(`fields.${index}.type`) === 'pagebreak' ? 'New Page Label (Optional)' : 'Field Label'}</FormLabel>
                                 <FormControl><Input placeholder={form.watch(`fields.${index}.type`) === 'pagebreak' ? 'e.g., Section 2: Details' : "e.g., Your Name"} {...fieldProps} disabled={isSavingForm || isGenerating} /></FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -425,7 +425,7 @@ export default function EditFormPage() {
                                     form.setValue(`fields.${index}.options`, [{ label: "Option 1", value: "option_1" }]);
                                   }
                                   if (value === 'pagebreak') {
-                                      form.setValue(`fields.${index}.label`, form.getValues(`fields.${index}.label`) || 'New Section');
+                                      form.setValue(`fields.${index}.label`, form.getValues(`fields.${index}.label`) || 'Next Page');
                                   }
                                 }}
                                 defaultValue={fieldProps.value}
@@ -532,11 +532,11 @@ export default function EditFormPage() {
                      <Button 
                         type="button" 
                         variant="outline" 
-                        onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "New Section", type: "pagebreak", required: false })} 
+                        onClick={() => append({ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "Next Page", type: "pagebreak", required: false })} 
                         className="w-full" 
                         disabled={isSavingForm || isGenerating}
                     >
-                        <PageBreakIcon className="mr-2 h-4 w-4" /> Add Page Break
+                        <PageBreakIcon className="mr-2 h-4 w-4" /> Add New Page
                     </Button>
                   </div>
                 </CardContent>
