@@ -51,6 +51,7 @@ export default function FormsPage() {
       return;
     }
 
+    setIsLoading(true);
     const q = query(
       collection(db, "surveys"), 
       where("createdBy", "==", currentUser.uid),
@@ -258,7 +259,7 @@ export default function FormsPage() {
       {/* Preview Form Dialog */}
       {selectedFormForPreview && (
         <Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="sm:max-w-2xl shadow-xl"> {/* Added shadow-xl here for more emphasis */}
             <DialogHeader>
               <DialogTitle>Preview: {selectedFormForPreview.title}</DialogTitle>
               {selectedFormForPreview.description && <DialogDescription>{selectedFormForPreview.description}</DialogDescription>}
@@ -266,27 +267,27 @@ export default function FormsPage() {
             <ScrollArea className="max-h-[70vh] p-1 pr-3 my-4">
               <div className="space-y-6 p-2">
                 {selectedFormForPreview.fields.map((field) => (
-                  <div key={field.id} className="p-3 border rounded-md bg-muted/20">
-                    <Label className="font-medium">{field.text} {field.required && <span className="text-destructive">*</span>}</Label>
-                    {field.description && <p className="text-xs text-muted-foreground mb-1">{field.description}</p>}
+                  <div key={field.id} className="p-4 border rounded-lg bg-card shadow-sm"> {/* Changed bg-muted/20 to bg-card and added shadow-sm */}
+                    <Label className="font-semibold text-base text-card-foreground">{field.text} {field.required && <span className="text-destructive">*</span>}</Label>
+                    {field.description && <p className="text-xs text-muted-foreground mb-2 mt-1">{field.description}</p>}
                     
-                    {field.type === "text" && <Input type="text" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
-                    {field.type === "email" && <Input type="email" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
-                    {field.type === "number" && <Input type="number" placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
-                    {field.type === "textarea" && <Textarea placeholder={field.placeholder} disabled className="mt-1 bg-background/50" />}
-                    {field.type === "date" && <Input type="date" disabled className="mt-1 bg-background/50" />}
+                    {field.type === "text" && <Input type="text" placeholder={field.placeholder} disabled className="mt-1 bg-input/70" />}
+                    {field.type === "email" && <Input type="email" placeholder={field.placeholder} disabled className="mt-1 bg-input/70" />}
+                    {field.type === "number" && <Input type="number" placeholder={field.placeholder} disabled className="mt-1 bg-input/70" />}
+                    {field.type === "textarea" && <Textarea placeholder={field.placeholder} disabled className="mt-1 bg-input/70" />}
+                    {field.type === "date" && <Input type="date" disabled className="mt-1 bg-input/70" />}
                     
                     {field.type === "rating" && (
-                      <div className="flex space-x-1 mt-1">
+                      <div className="flex space-x-1 mt-2">
                         {[...(Array(field.maxRating || 5).keys())].map(i => i + (field.minRating || 1)).map(starValue => (
-                          <Star key={starValue} className="h-5 w-5 text-muted-foreground/50" />
+                          <Star key={starValue} className="h-6 w-6 text-muted-foreground/50" />
                         ))}
                       </div>
                     )}
                     
                     {field.type === "select" && (
                       <Select disabled>
-                        <SelectTrigger className="mt-1 bg-background/50">
+                        <SelectTrigger className="mt-1 bg-input/70">
                           <SelectValue placeholder={field.placeholder || "Select an option"} />
                         </SelectTrigger>
                         <SelectContent>
@@ -296,7 +297,7 @@ export default function FormsPage() {
                     )}
                     
                     {field.type === "radio" && field.options && (
-                      <RadioGroup disabled className="space-y-1 mt-1">
+                      <RadioGroup disabled className="space-y-2 mt-2">
                         {field.options.map(opt => (
                           <div key={opt.value} className="flex items-center space-x-2">
                             <RadioGroupItem value={opt.value} id={`${field.id}-preview-${opt.value}`} disabled />
@@ -307,7 +308,7 @@ export default function FormsPage() {
                     )}
                     
                     {field.type === "checkbox" && field.options && (
-                      <div className="space-y-1 mt-1">
+                      <div className="space-y-2 mt-2">
                         {field.options.map(opt => (
                           <div key={opt.value} className="flex items-center space-x-2">
                             <Checkbox id={`${field.id}-preview-${opt.value}`} value={opt.value} disabled />
@@ -318,7 +319,7 @@ export default function FormsPage() {
                     )}
 
                     {field.type === "nps" && (
-                        <div className="flex flex-wrap gap-1 mt-1">
+                        <div className="flex flex-wrap gap-1 mt-2">
                             {[...Array(11).keys()].map(i => (
                             <Button key={i} variant="outline" size="sm" disabled className="h-7 w-7 p-0">{i}</Button>
                             ))}
