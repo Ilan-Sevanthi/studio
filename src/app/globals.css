@@ -22,8 +22,8 @@
     --accent-foreground: 40 100% 10%; /* Dark brown for gold accent text */
     --destructive: 0 75% 55%; /* Standard Red for destructive actions */
     --destructive-foreground: 0 0% 100%;
-    --border: 40 30% 80%; /* Warm Gray/Beige border */
-    --input: 45 50% 94%; /* Light Cream input fields */
+    --border: 40 30% 75%; /* Warm Gray/Beige border - was 80% lightness */
+    --input: 40 30% 65%; /* Darker Warm Gray for input borders - was 45 50% 94% */
     --ring: 0 100% 27%; /* Deep Red for rings */
     --radius: 0.5rem;
 
@@ -61,7 +61,7 @@
     --popover: 30 15% 12%;
     --popover-foreground: 40 25% 90%;
     --primary: 0 80% 60%; /* Brighter Deep Red for dark mode */
-    --primary-foreground: 0 0% 100%; 
+    --primary-foreground: 0 0% 100%;
     --secondary: 30 20% 25%; /* Darker shade of warm brown */
     --secondary-foreground: 40 20% 80%;
     --muted: 30 15% 20%; /* Muted Dark Warm Brown */
@@ -70,8 +70,8 @@
     --accent-foreground: 40 100% 95%; /* Very light for gold accent text */
     --destructive: 0 70% 60%; /* Brighter Red */
     --destructive-foreground: 0 0% 100%;
-    --border: 30 15% 25%; /* Dark Warm Brown Border */
-    --input: 30 15% 15%; /* Dark Input */
+    --border: 30 15% 30%; /* Dark Warm Brown Border - was 25% lightness */
+    --input: 30 15% 40%; /* Lighter Warm Gray for input borders - was 30 15% 15% */
     --ring: 0 80% 60%; /* Brighter Deep Red for rings */
 
     /* Chart Colors - Dark Theme */
@@ -87,13 +87,13 @@
     --status-draft-text: 45 80% 75%;      /* Lighter Gold */
     --status-scheduled-text: 0 70% 75%; /* Lighter Red-Brown */
     --status-pending-text: 30 80% 75%; /* Lighter Orange-Brown */
-    
+
     /* Sidebar specific theme for dark mode */
-    --sidebar-background: 30 15% 10%; 
-    --sidebar-foreground: 40 20% 85%; 
-    --sidebar-primary: 0 80% 60%; 
-    --sidebar-primary-foreground: 0 0% 100%; 
-    --sidebar-accent: 30 15% 20%; 
+    --sidebar-background: 30 15% 10%;
+    --sidebar-foreground: 40 20% 85%;
+    --sidebar-primary: 0 80% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 15% 20%;
     --sidebar-accent-foreground: 0 80% 60%;
     --sidebar-border: 30 15% 22%;
     --sidebar-ring: 45 80% 60%;
@@ -105,11 +105,13 @@
     @apply border-border;
   }
   body {
-    @apply bg-gradient-to-br from-[hsl(45,50%,96%)] to-[hsl(var(--background))] text-foreground; /* Subtle gradient from very light cream to light beige */
+    /* Subtle gradient from very light cream to light beige */
+    @apply bg-gradient-to-br from-[hsl(45,50%,98%)] to-[hsl(var(--background))] text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   .dark body {
-    @apply bg-gradient-to-br from-[hsl(30,20%,10%)] to-[hsl(var(--background))]; /* Subtle dark gradient */
+    /* Subtle dark gradient */
+    @apply bg-gradient-to-br from-[hsl(30,20%,10%)] to-[hsl(var(--background))];
   }
 }
 
@@ -129,5 +131,4 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.7);
 }
-
     
