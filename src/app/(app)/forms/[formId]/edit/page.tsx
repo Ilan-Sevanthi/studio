@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import * as z from "zod";
@@ -177,7 +177,7 @@ export default function EditFormPage() {
   };
 
   const loadForm = useCallback(async (id: string) => {
-    if (!id) { // Added check here
+    if (!id) { 
         setIsLoading(false);
         toast({ title: "Error", description: "Form ID is missing. Cannot load form.", variant: "destructive" });
         router.push("/forms");
@@ -190,7 +190,6 @@ export default function EditFormPage() {
 
       if (formDocSnap.exists()) {
         const formData = formDocSnap.data() as AppFormSchema;
-        // Check if current user is the creator
         const currentUser = auth.currentUser;
         if (currentUser && formData.createdBy !== currentUser.uid) {
             toast({ title: "Unauthorized", description: "You are not authorized to edit this form.", variant: "destructive" });
@@ -201,10 +200,9 @@ export default function EditFormPage() {
         form.reset({
           title: formData.title,
           description: formData.description || "",
-          // Ensure fields are mapped correctly, especially options which might be undefined in DB
           fields: formData.fields.map(f => ({
             id: f.id,
-            label: f.text, // Map text from DB to label for form
+            label: f.text, 
             type: f.type,
             required: f.required || false,
             placeholder: f.placeholder || "",
@@ -230,9 +228,7 @@ export default function EditFormPage() {
     if (formId) {
       loadForm(formId);
     } else {
-      setIsLoading(false); // No formId, so stop loading
-      // Optionally, handle the case where formId is not available yet or redirect
-      // console.warn("Form ID not available in EditFormPage useEffect yet.");
+      setIsLoading(false); 
     }
   }, [formId, loadForm]);
 
@@ -279,7 +275,7 @@ export default function EditFormPage() {
     try {
       const questionsForDb: QuestionSchema[] = data.fields.map(f => ({
         id: f.id,
-        surveyId: formId, // Link back to the parent survey
+        surveyId: formId, 
         text: f.label,
         type: f.type as FormFieldType,
         options: f.options || [],
@@ -288,11 +284,11 @@ export default function EditFormPage() {
         description: f.description || "",
       }));
 
-      const surveyDataForDb: Partial<AppFormSchema> = { // Use Partial because not all fields are updated
+      const surveyDataForDb: Partial<AppFormSchema> = { 
         title: data.title,
         description: data.description || "",
         fields: questionsForDb,
-        updatedAt: serverTimestamp() as Timestamp, // Cast to Timestamp for type safety with Partial
+        updatedAt: serverTimestamp() as Timestamp, 
         isAnonymous: data.isAnonymous,
         aiMode: data.aiMode,
       };
