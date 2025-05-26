@@ -22,8 +22,8 @@
     --accent-foreground: 40 100% 10%; /* Dark brown for gold accent text */
     --destructive: 0 75% 55%; /* Standard Red for destructive actions */
     --destructive-foreground: 0 0% 100%;
-    --border: 40 30% 75%; /* Warm Gray/Beige border - was 80% lightness */
-    --input: 40 30% 65%; /* Darker Warm Gray for input borders - was 45 50% 94% */
+    --border: 40 30% 75%; /* Warm Gray/Beige border */
+    --input: 30 30% 45%; /* Darker Warm Gray for input borders - was 40 30% 65% making it darker */
     --ring: 0 100% 27%; /* Deep Red for rings */
     --radius: 0.5rem;
 
@@ -53,50 +53,50 @@
   }
 
   .dark {
-    /* Royal UI Theme (Deep Red, Light Beige, Soft Gold) - Dark Mode */
-    --background: 30 20% 8%; /* Very Dark Warm Brown/Gray */
-    --foreground: 40 25% 90%; /* Light Warm Gray/Beige for text */
-    --card: 30 15% 12%; /* Slightly lighter dark warm brown for cards */
-    --card-foreground: 40 25% 90%;
-    --popover: 30 15% 12%;
-    --popover-foreground: 40 25% 90%;
-    --primary: 0 80% 60%; /* Brighter Deep Red for dark mode */
-    --primary-foreground: 0 0% 100%;
-    --secondary: 30 20% 25%; /* Darker shade of warm brown */
-    --secondary-foreground: 40 20% 80%;
-    --muted: 30 15% 20%; /* Muted Dark Warm Brown */
-    --muted-foreground: 40 15% 65%;
-    --accent: 45 80% 60%; /* Brighter Gold */
-    --accent-foreground: 40 100% 95%; /* Very light for gold accent text */
-    --destructive: 0 70% 60%; /* Brighter Red */
+    /* Blue Color Palette - Dark Mode */
+    --background: 220 30% 10%; /* Very Dark Desaturated Blue */
+    --foreground: 210 20% 90%; /* Light Cool Gray */
+    --card: 220 30% 15%; /* Dark Desaturated Blue, slightly lighter than background */
+    --card-foreground: 210 20% 90%;
+    --popover: 220 30% 12%; /* Darker Popover */
+    --popover-foreground: 210 20% 90%;
+    --primary: 210 90% 60%; /* Strong, Medium-to-Bright Blue */
+    --primary-foreground: 0 0% 100%; /* White text */
+    --secondary: 215 40% 25%; /* Darker, Muted Blue */
+    --secondary-foreground: 210 30% 80%; /* Lighter, Muted Blue/Gray */
+    --muted: 220 25% 20%; /* Very Dark Blue/Gray, for subtle elements */
+    --muted-foreground: 210 15% 65%; /* Medium Cool Gray */
+    --accent: 190 80% 55%; /* Bright Teal/Cyan */
+    --accent-foreground: 220 50% 10%; /* Dark Blue/Black for accent text */
+    --destructive: 0 70% 60%; /* Brighter Red for dark mode destructive */
     --destructive-foreground: 0 0% 100%;
-    --border: 30 15% 30%; /* Dark Warm Brown Border - was 25% lightness */
-    --input: 30 15% 40%; /* Lighter Warm Gray for input borders - was 30 15% 15% */
-    --ring: 0 80% 60%; /* Brighter Deep Red for rings */
+    --border: 220 20% 25%; /* Dark Blue-Gray, for subtle borders */
+    --input: 220 20% 30%; /* Slightly Lighter Dark Blue-Gray for input borders */
+    --ring: 210 90% 60%; /* Primary Blue for rings */
 
-    /* Chart Colors - Dark Theme */
-    --chart-1: 0 70% 60%;
-    --chart-2: 45 70% 65%;
-    --chart-3: 25 60% 65%;
-    --chart-4: 90 30% 60%;
-    --chart-5: 340 50% 65%;
+    /* Chart Colors - Dark Theme (Blue Palette) */
+    --chart-1: 210 80% 65%;  /* Main Blue */
+    --chart-2: 190 70% 60%;  /* Teal/Cyan */
+    --chart-3: 200 60% 70%;  /* Lighter Blue */
+    --chart-4: 160 50% 60%;  /* Desaturated Blue-Green (positive) */
+    --chart-5: 250 50% 70%;  /* Contrasting Indigo/Purple */
 
-    /* Status Text Colors - Dark Theme */
-    --status-active-text: 90 40% 75%;   /* Lighter Olive Green */
-    --status-closed-text: 0 70% 80%;     /* Lighter Red */
-    --status-draft-text: 45 80% 75%;      /* Lighter Gold */
-    --status-scheduled-text: 0 70% 75%; /* Lighter Red-Brown */
-    --status-pending-text: 30 80% 75%; /* Lighter Orange-Brown */
+    /* Status Text Colors - Dark Theme (Blue Palette) */
+    --status-active-text: 160 70% 80%;   /* Light Blue-Green */
+    --status-closed-text: 0 70% 80%;     /* Light Red (consistent) */
+    --status-draft-text: 190 70% 80%;    /* Light Teal */
+    --status-scheduled-text: 200 70% 80%;/* Light Blue */
+    --status-pending-text: 240 60% 80%;  /* Light Indigo */
 
-    /* Sidebar specific theme for dark mode */
-    --sidebar-background: 30 15% 10%;
-    --sidebar-foreground: 40 20% 85%;
-    --sidebar-primary: 0 80% 60%;
+    /* Sidebar specific theme for dark mode (Blue Palette) */
+    --sidebar-background: 220 30% 10%; /* Same as main dark bg */
+    --sidebar-foreground: 210 20% 90%; /* Same as main dark fg */
+    --sidebar-primary: 210 90% 60%; /* Primary Blue */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 30 15% 20%;
-    --sidebar-accent-foreground: 0 80% 60%;
-    --sidebar-border: 30 15% 22%;
-    --sidebar-ring: 45 80% 60%;
+    --sidebar-accent: 220 30% 20%; /* Darker blue for hover, distinct from primary */
+    --sidebar-accent-foreground: 190 80% 75%; /* Teal for text on accent hover */
+    --sidebar-border: 220 20% 22%; /* Darker border for sidebar */
+    --sidebar-ring: 190 80% 55%; /* Accent Teal for sidebar ring */
   }
 }
 
@@ -105,13 +105,13 @@
     @apply border-border;
   }
   body {
-    /* Subtle gradient from very light cream to light beige */
+    /* Subtle gradient from very light cream to light beige for light mode */
     @apply bg-gradient-to-br from-[hsl(45,50%,98%)] to-[hsl(var(--background))] text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   .dark body {
-    /* Subtle dark gradient */
-    @apply bg-gradient-to-br from-[hsl(30,20%,10%)] to-[hsl(var(--background))];
+    /* Subtle dark gradient for dark mode (blue-ish) */
+    @apply bg-gradient-to-br from-[hsl(220,30%,12%)] to-[hsl(var(--background))];
   }
 }
 
