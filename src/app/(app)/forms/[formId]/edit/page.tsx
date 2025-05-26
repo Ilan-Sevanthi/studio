@@ -21,8 +21,8 @@ import type { FormFieldOption, FormFieldType, FormSchema as AppFormSchema, Quest
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
 import { db, auth } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { useRouter } from "next/navigation";
+import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { useRouter, useParams } from "next/navigation"; // Import useParams
 
 const formFieldSchema = z.object({
   id: z.string().default(() => `field_${Math.random().toString(36).substr(2, 9)}`),
@@ -129,8 +129,9 @@ function FormPreview({ formData }: { formData: Partial<EditFormValues> }) {
 }
 
 
-export default function EditFormPage({ params }: { params: { formId: string } }) {
-  const { formId } = params;
+export default function EditFormPage() {
+  const params = useParams();
+  const formId = params.formId as string; // Extract formId from params
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -176,6 +177,12 @@ export default function EditFormPage({ params }: { params: { formId: string } })
   };
 
   const loadForm = useCallback(async (id: string) => {
+    if (!id) { // Added check here
+        setIsLoading(false);
+        toast({ title: "Error", description: "Form ID is missing. Cannot load form.", variant: "destructive" });
+        router.push("/forms");
+        return;
+    }
     setIsLoading(true);
     try {
       const formDocRef = doc(db, "surveys", id);
@@ -220,14 +227,14 @@ export default function EditFormPage({ params }: { params: { formId: string } })
   }, [form, router, toast]);
 
   useEffect(() => {
-    if (!formId) {
-      setIsLoading(true); // Or handle error, redirect
-      toast({ title: "Error", description: "Form ID is missing.", variant: "destructive" });
-      router.push("/forms");
-      return;
+    if (formId) {
+      loadForm(formId);
+    } else {
+      setIsLoading(false); // No formId, so stop loading
+      // Optionally, handle the case where formId is not available yet or redirect
+      // console.warn("Form ID not available in EditFormPage useEffect yet.");
     }
-    loadForm(formId);
-  }, [formId, loadForm, router, toast]);
+  }, [formId, loadForm]);
 
 
   const handleGenerateQuestions = async () => {
@@ -281,11 +288,11 @@ export default function EditFormPage({ params }: { params: { formId: string } })
         description: f.description || "",
       }));
 
-      const surveyDataForDb = {
+      const surveyDataForDb: Partial<AppFormSchema> = { // Use Partial because not all fields are updated
         title: data.title,
         description: data.description || "",
         fields: questionsForDb,
-        updatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp() as Timestamp, // Cast to Timestamp for type safety with Partial
         isAnonymous: data.isAnonymous,
         aiMode: data.aiMode,
       };
