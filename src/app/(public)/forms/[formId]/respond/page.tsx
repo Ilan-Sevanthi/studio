@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,67 +15,50 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
-import type { FormSchema, FormFieldSchema as AppFormFieldSchema, FormResponse } from "@/types"; 
-import { Star } from "lucide-react";
-
-// Mock Data (replace with actual data fetching for the specific formId)
-const mockForm: FormSchema = {
-  id: "form_123_public",
-  title: "Customer Satisfaction Survey Q3",
-  description: "We value your feedback! Please take a few moments to tell us about your experience with our services during the third quarter. Your responses will help us improve.",
-  fields: [
-    { surveyId: "form_123_public", id: "q1_name", label: "Your Name (Optional)", type: "text", placeholder: "John Doe" },
-    { surveyId: "form_123_public", id: "q1_email", label: "Your Email (Optional)", type: "email", placeholder: "john.doe@example.com" },
-    { surveyId: "form_123_public", id: "q1_overall_sat", label: "Overall, how satisfied are you with our service?", type: "rating", required: true, options: [{value: "1", label:"1"}, {value: "2", label:"2"}, {value: "3", label:"3"}, {value: "4", label:"4"}, {value: "5", label:"5"}] },
-    { surveyId: "form_123_public", id: "q2_recommend", label: "How likely are you to recommend our service to a friend or colleague?", type: "radio", required: true, options: [{value: "very_likely", label:"Very Likely"}, {value: "likely", label:"Likely"}, {value: "neutral", label:"Neutral"}, {value: "unlikely", label:"Unlikely"}, {value: "very_unlikely", label:"Very Unlikely"}] },
-    { surveyId: "form_123_public", id: "q3_liked_most", label: "What did you like most about our service?", type: "textarea", placeholder: "Tell us what stood out..." },
-    { surveyId: "form_123_public", id: "q4_improvement", label: "How can we improve our service?", type: "textarea", placeholder: "Your suggestions are valuable..." },
-    { surveyId: "form_123_public", id: "q5_features", label: "Which features do you use most often? (Select all that apply)", type: "checkbox", options: [{value: "dashboard", label:"Dashboard"}, {value: "reporting", label:"Reporting"}, {value: "integration", label:"Integrations"}, {value: "support", label:"Support"}] },
-    { surveyId: "form_123_public", id: "q6_contact_pref", label: "Preferred contact method for follow-up (if any):", type: "select", options: [{value: "email", label:"Email"}, {value: "phone", label:"Phone"}, {value: "no_contact", label:"No follow-up needed"}], placeholder: "Select a method" },
-  ],
-  createdBy: "user_abc",
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  isAnonymous: false, 
-  aiMode: "assisted_creation"
-};
+import type { FormSchema, QuestionSchema as AppQuestionSchema, FormResponse } from "@/types"; 
+import { Star, Loader2 } from "lucide-react";
+import { db, auth } from "@/lib/firebase";
+import { doc, getDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { useRouter } from 'next/navigation';
 
 
-const generateZodSchema = (fields: AppFormFieldSchema[]) => {
+const generateZodSchema = (fields: AppQuestionSchema[]) => {
   const shape: Record<string, z.ZodTypeAny> = {};
   fields.forEach(field => {
     let zodType: z.ZodTypeAny;
     switch (field.type) {
       case "text":
       case "textarea":
-      case "radio": // Radio button group selection is a string
-      case "select": // Select selection is a string
+      case "radio": 
+      case "select": 
         zodType = z.string();
-        if (field.required) zodType = zodType.min(1, `${field.label} is required.`);
+        if (field.required) zodType = zodType.min(1, `${field.text} is required.`);
         else zodType = zodType.optional().or(z.literal("")); 
         break;
       case "email":
         zodType = z.string();
-        if (field.required) zodType = zodType.email({ message: `${field.label} must be a valid email.` });
-        else zodType = zodType.email({ message: `${field.label} must be a valid email.` }).optional().or(z.literal(""));
+        if (field.required) zodType = zodType.email({ message: `${field.text} must be a valid email.` });
+        else zodType = zodType.email({ message: `${field.text} must be a valid email.` }).optional().or(z.literal(""));
         break;
       case "number":
-        zodType = z.coerce.number({invalid_type_error: `${field.label} must be a number.`});
-        if (field.required) zodType = zodType.min(field.minRating ?? -Infinity, `${field.label} is required.`);
-        else zodType = zodType.optional();
-        break;
       case "rating": 
-        zodType = z.coerce.number({invalid_type_error: `${field.label} must be a number (rating).`});
-        if (field.required) zodType = zodType.min(1, `${field.label} is required.`); 
-        else zodType = zodType.optional();
+      case "nps":
+        zodType = z.coerce.number({invalid_type_error: `${field.text} must be a number.`});
+        if (field.required) {
+            if (field.type === "rating") zodType = zodType.min(field.minRating ?? 1, `${field.text} is required.`);
+            else if (field.type === "nps") zodType = zodType.min(0).max(10); // NPS is 0-10
+            else zodType = zodType.min(1, `${field.text} is required.`);
+        } else {
+            zodType = zodType.optional();
+        }
         break;
-      case "checkbox": // Assuming checkbox group returns an array of selected string values
+      case "checkbox": 
         zodType = z.array(z.string()).optional();
-        if (field.required) zodType = z.array(z.string()).min(1, `Please select at least one option for ${field.label}.`);
+        if (field.required) zodType = z.array(z.string()).min(1, `Please select at least one option for ${field.text}.`);
         break;
       case "date":
-        zodType = z.string(); // Dates are typically strings from date pickers
-        if (field.required) zodType = zodType.min(1, `${field.label} is required.`);
+        zodType = z.string(); 
+        if (field.required) zodType = zodType.min(1, `${field.text} is required.`);
         else zodType = zodType.optional().or(z.literal(""));
         break;
       default:
@@ -86,80 +69,107 @@ const generateZodSchema = (fields: AppFormFieldSchema[]) => {
   return z.object(shape);
 };
 
-// Placeholder function for simulating backend call to save response
-async function saveResponseToBackend(formId: string, responseData: Record<string, any>): Promise<FormResponse> {
-  console.log(`Simulating saving response for form ${formId} to backend:`, responseData);
-  // In a real app, this would call a Cloud Function or directly write to Firestore
-  // to create a 'responses' document.
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-
-  // For now, return a mock FormResponse object
-  const createdResponse: FormResponse = {
-    id: `resp_sim_${Date.now()}`,
+async function saveResponseToBackend(formId: string, responseData: Record<string, any>, isAnonymous: boolean): Promise<FormResponse> {
+  console.log(`Saving response for form ${formId} to Firestore:`, responseData);
+  
+  const currentUser = auth.currentUser;
+  const submissionData: any = {
     formId: formId,
     answers: responseData,
-    timestamp: new Date().toISOString(),
-    // userId: 'anonymous_or_actual_user_id', // If available
+    timestamp: serverTimestamp(),
   };
-  return createdResponse;
+
+  if (currentUser && !isAnonymous) {
+    submissionData.userId = currentUser.uid;
+  }
+  
+  const docRef = await addDoc(collection(db, "responses"), submissionData);
+  
+  // Simulate triggering a confirmation email (placeholder)
+  // if (currentUser && !isAnonymous && currentUser.email) {
+  //   console.log(`TODO: Trigger Cloud Function to send confirmation email to ${currentUser.email}`);
+  // } else if (responseData.email_field_id && !isAnonymous) { // Assuming an email field exists
+  //   console.log(`TODO: Trigger Cloud Function to send confirmation email to ${responseData.email_field_id}`);
+  // }
+
+
+  return {
+    id: docRef.id,
+    formId: formId,
+    answers: responseData,
+    timestamp: new Date().toISOString(), // Approximate, serverTimestamp is accurate in DB
+    userId: (currentUser && !isAnonymous) ? currentUser.uid : undefined,
+  };
 }
 
 
 export default function RespondToFormPage({ params }: { params: { formId: string } }) {
+  const { formId } = params;
   const { toast } = useToast();
+  const router = useRouter();
   const [formSchema, setFormSchema] = useState<FormSchema | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingSchema, setIsLoadingSchema] = useState(true);
 
-  // Dynamically create Zod schema and form instance
   const dynamicFormSchema = formSchema ? generateZodSchema(formSchema.fields) : z.object({});
   type DynamicFormValues = z.infer<typeof dynamicFormSchema>;
   
   const formHook = useForm<DynamicFormValues>({
     resolver: zodResolver(dynamicFormSchema),
-    // Default values will be set/reset in useEffect when formSchema loads
+    defaultValues: {}, // Will be set in useEffect
   });
   
-  useEffect(() => {
-    // Simulate fetching form schema based on params.formId
-    // In a real app, fetch from Firestore: doc(db, 'surveys', params.formId)
-    console.log("Fetching form schema for ID:", params.formId); 
-    setFormSchema(mockForm); // Using mockForm for now
-    
-    // Reset form with default values once schema is loaded/changed
-    if (mockForm) { // Use the fetched form (mockForm here)
-        const defaultValues = mockForm.fields.reduce((acc, field) => {
-        acc[field.id] = field.type === 'checkbox' ? [] : field.type === 'rating' ? 0 : '';
-        return acc;
+  const loadFormSchema = useCallback(async (id: string) => {
+    setIsLoadingSchema(true);
+    try {
+      const formDocRef = doc(db, "surveys", id);
+      const formDocSnap = await getDoc(formDocRef);
+      if (formDocSnap.exists()) {
+        const fetchedForm = { id: formDocSnap.id, ...formDocSnap.data() } as FormSchema;
+        setFormSchema(fetchedForm);
+        
+        const defaultValues = fetchedForm.fields.reduce((acc, field) => {
+          acc[field.id] = field.type === 'checkbox' ? [] : 
+                          field.type === 'rating' ? 0 : 
+                          field.type === 'nps' ? undefined : // NPS can start unselected
+                          '';
+          return acc;
         }, {} as Record<string, any>);
         formHook.reset(defaultValues);
-    }
-  }, [params.formId, formHook.reset]);
 
-  if (!formSchema) {
-    return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-4">
-            <Card className="w-full max-w-2xl shadow-xl">
-                <CardHeader>
-                    <CardTitle className="text-2xl md:text-3xl text-center">Loading Form...</CardTitle>
-                </CardHeader>
-                <CardContent className="text-center">
-                    <div className="animate-pulse space-y-4">
-                        <div className="h-8 bg-muted rounded w-3/4 mx-auto"></div>
-                        <div className="h-4 bg-muted rounded w-full mx-auto"></div>
-                        <div className="h-4 bg-muted rounded w-5/6 mx-auto"></div>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-    );
-  }
+      } else {
+        toast({ title: "Form Not Found", description: "This form may no longer exist or the link is incorrect.", variant: "destructive" });
+        setFormSchema(null);
+        // Optionally redirect: router.push('/some-error-page');
+      }
+    } catch (error) {
+      console.error("Error fetching form schema:", error);
+      toast({ title: "Error", description: "Could not load the form.", variant: "destructive" });
+      setFormSchema(null);
+    } finally {
+      setIsLoadingSchema(false);
+    }
+  }, [formHook.reset, toast]);
+
+  useEffect(() => {
+    if (!formId) {
+      setIsLoadingSchema(false);
+      toast({ title: "Error", description: "Form ID is missing in URL.", variant: "destructive" });
+      // Optionally redirect: router.push('/some-error-page');
+      return;
+    }
+    loadFormSchema(formId);
+  }, [formId, loadFormSchema, toast]);
 
   async function onSubmit(data: DynamicFormValues) {
+    if (!formSchema) {
+      toast({ title: "Error", description: "Form schema not loaded. Cannot submit.", variant: "destructive"});
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const savedResponse = await saveResponseToBackend(formSchema!.id, data);
-      console.log("Form response saved (simulated):", savedResponse);
+      await saveResponseToBackend(formSchema.id, data, formSchema.isAnonymous);
       toast({
         title: "Response Submitted!",
         description: "Thank you for your feedback.",
@@ -174,6 +184,38 @@ export default function RespondToFormPage({ params }: { params: { formId: string
     }
   }
 
+  if (isLoadingSchema) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <Card className="w-full max-w-2xl shadow-xl">
+          <CardHeader>
+            <CardTitle className="text-2xl md:text-3xl text-center">Loading Form...</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center py-10">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!formSchema) {
+     return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <Card className="w-full max-w-2xl shadow-xl text-center">
+          <CardHeader>
+            <CardTitle className="text-2xl md:text-3xl">Form Unavailable</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">This form could not be loaded. It might have been moved or deleted.</p>
+            <Button onClick={() => router.push('/')} className="mt-4">Go to Homepage</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+
   if (isSubmitted) {
     return (
       <Card className="w-full shadow-xl">
@@ -186,7 +228,7 @@ export default function RespondToFormPage({ params }: { params: { formId: string
           <p>We appreciate you taking the time to share your thoughts.</p>
         </CardContent>
         <CardFooter className="justify-center">
-          <Button variant="outline" onClick={() => setIsSubmitted(false)}>Submit Another Response</Button>
+          <Button variant="outline" onClick={() => { setIsSubmitted(false); loadFormSchema(formId); }}>Submit Another Response</Button>
         </CardFooter>
       </Card>
     );
@@ -208,7 +250,7 @@ export default function RespondToFormPage({ params }: { params: { formId: string
                 name={field.id as keyof DynamicFormValues}
                 render={({ field: formFieldProps }) => (
                   <FormItem>
-                    <FormLabel className="text-md font-semibold">{field.label} {field.required && <span className="text-destructive">*</span>}</FormLabel>
+                    <FormLabel className="text-md font-semibold">{field.text} {field.required && <span className="text-destructive">*</span>}</FormLabel>
                     {field.description && <ShadcnFormDescription>{field.description}</ShadcnFormDescription>}
                     <FormControl>
                       <>
@@ -261,7 +303,7 @@ export default function RespondToFormPage({ params }: { params: { formId: string
                         )}
                         {field.type === "rating" && (
                            <div className="flex space-x-1">
-                            {[1, 2, 3, 4, 5].map(starValue => (
+                            {[...(Array(field.maxRating || 5).keys())].map(i => i + (field.minRating || 1)).map(starValue => (
                               <Button
                                 key={starValue}
                                 type="button"
@@ -276,7 +318,23 @@ export default function RespondToFormPage({ params }: { params: { formId: string
                             ))}
                           </div>
                         )}
-                        {/* TODO: Add date picker component if needed for "date" type */}
+                        {field.type === "nps" && (
+                            <div className="flex flex-wrap gap-1 items-center">
+                                {[...Array(11).keys()].map(npsValue => (
+                                    <Button
+                                        key={npsValue}
+                                        type="button"
+                                        variant={(formFieldProps.value as number) === npsValue ? "default" : "outline"}
+                                        size="sm"
+                                        className="h-8 w-8 p-0 md:h-9 md:w-9"
+                                        onClick={() => formFieldProps.onChange(npsValue)}
+                                        disabled={isSubmitting}
+                                    >
+                                        {npsValue}
+                                    </Button>
+                                ))}
+                            </div>
+                        )}
                          {field.type === "date" && <Input type="date" {...formFieldProps} disabled={isSubmitting} />}
                       </>
                     </FormControl>
@@ -285,13 +343,13 @@ export default function RespondToFormPage({ params }: { params: { formId: string
                 )}
               />
             ))}
-             {formSchema.isAnonymous && !formSchema.fields.some(f => f.type === 'email' || f.label.toLowerCase().includes('name')) && (
+             {formSchema.isAnonymous && !formSchema.fields.some(f => f.type === 'email' || f.text.toLowerCase().includes('name')) && (
               <p className="text-sm text-muted-foreground italic mt-4">This form collects responses anonymously. Your personal information will not be recorded unless explicitly asked for in the questions above.</p>
             )}
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full md:w-auto" size="lg" disabled={isSubmitting}>
-              {isSubmitting ? "Submitting..." : "Submit Response"}
+            <Button type="submit" className="w-full md:w-auto" size="lg" disabled={isSubmitting || isLoadingSchema}>
+              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : "Submit Response"}
             </Button>
           </CardFooter>
         </form>
@@ -299,3 +357,4 @@ export default function RespondToFormPage({ params }: { params: { formId: string
     </Card>
   );
 }
+
