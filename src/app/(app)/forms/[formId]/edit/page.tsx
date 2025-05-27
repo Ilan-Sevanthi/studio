@@ -70,10 +70,10 @@ function FormPreview({ formData }: { formData: Partial<EditFormValues> }) {
         {formData.fields.map((field, index) => (
           <div key={field.id || index} className="p-3 border rounded-md bg-muted/20">
             {field.type === "pagebreak" ? (
-                 <div className="flex items-center space-x-2 py-2">
-                    <hr className="flex-grow border-border" />
-                    <span className="text-xs text-muted-foreground">{field.label || "Next Page"}</span>
-                    <hr className="flex-grow border-border" />
+                 <div className="flex items-center space-x-2 py-2 my-2 border-y border-dashed border-border bg-secondary/30 rounded">
+                    <PageBreakIcon className="h-4 w-4 text-muted-foreground mx-2" />
+                    <span className="text-sm font-medium text-muted-foreground flex-grow">{field.label || "Next Page"}</span>
+                    <hr className="flex-grow border-border invisible" />
                 </div>
             ) : (
                 <>
@@ -105,8 +105,8 @@ function FormPreview({ formData }: { formData: Partial<EditFormValues> }) {
                     <div className="space-y-1 mt-1">
                         {field.options.map(opt => (
                         <div key={opt.value} className="flex items-center space-x-2">
-                            <input type="radio" id={`${field.id}-${opt.value}`} value={opt.value} name={field.id} disabled />
-                            <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
+                             <input type="radio" id={`${field.id}-preview-edit-${opt.value}`} value={opt.value} name={`${field.id}-preview-edit`} disabled />
+                            <Label htmlFor={`${field.id}-preview-edit-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
                         </div>
                         ))}
                     </div>
@@ -115,8 +115,8 @@ function FormPreview({ formData }: { formData: Partial<EditFormValues> }) {
                     <div className="space-y-1 mt-1">
                         {field.options.map(opt => (
                         <div key={opt.value} className="flex items-center space-x-2">
-                            <input type="checkbox" id={`${field.id}-${opt.value}`} value={opt.value} disabled />
-                            <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
+                            <input type="checkbox" id={`${field.id}-preview-edit-${opt.value}`} value={opt.value} disabled />
+                            <Label htmlFor={`${field.id}-preview-edit-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
                         </div>
                         ))}
                     </div>
@@ -139,8 +139,8 @@ function FormPreview({ formData }: { formData: Partial<EditFormValues> }) {
 
 
 export default function EditFormPage() {
-  const params = useParams();
-  const formId = params.formId as string; 
+  const paramsHook = useParams(); // Use the hook
+  const formId = paramsHook.formId as string; // Extract formId
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -238,6 +238,8 @@ export default function EditFormPage() {
       loadForm(formId);
     } else {
       setIsLoading(false); 
+      // Handle case where formId might be undefined initially if needed,
+      // though useParams usually provides it if the route matches.
     }
   }, [formId, loadForm]);
 
@@ -291,6 +293,7 @@ export default function EditFormPage() {
         required: f.type === "pagebreak" ? false : f.required,
         placeholder: f.placeholder || "",
         description: f.description || "",
+         // minRating and maxRating are not part of formFieldSchema yet, add if needed
       }));
 
       const surveyDataForDb: Partial<AppFormSchema> = { 
@@ -300,6 +303,7 @@ export default function EditFormPage() {
         updatedAt: serverTimestamp() as Timestamp, 
         isAnonymous: data.isAnonymous,
         aiMode: data.aiMode,
+        // createdBy and createdAt should not be overwritten on update
       };
 
       const formDocRef = doc(db, "surveys", formId);
@@ -438,6 +442,11 @@ export default function EditFormPage() {
                                     ))}
                                   </SelectContent>
                                 </Select>
+                                {form.watch(`fields.${index}.type`) === 'pagebreak' && (
+                                  <ShadcnFormDescription className="mt-1 text-xs">
+                                    This creates a new page for the respondent. Subsequent fields will appear on this new page.
+                                  </ShadcnFormDescription>
+                                )}
                                 <FormMessage />
                               </FormItem>
                             )}

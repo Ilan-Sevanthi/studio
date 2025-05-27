@@ -71,10 +71,10 @@ function FormPreview({ formData }: { formData: Partial<CreateFormValues> }) {
         {formData.fields.map((field, index) => (
           <div key={field.id || index} className="p-3 border rounded-md bg-muted/20">
             {field.type === "pagebreak" ? (
-                <div className="flex items-center space-x-2 py-2">
-                    <hr className="flex-grow border-border" />
-                    <span className="text-xs text-muted-foreground">{field.label || "Next Page"}</span>
-                    <hr className="flex-grow border-border" />
+                 <div className="flex items-center space-x-2 py-2 my-2 border-y border-dashed border-border bg-secondary/30 rounded">
+                    <PageBreakIcon className="h-4 w-4 text-muted-foreground mx-2" />
+                    <span className="text-sm font-medium text-muted-foreground flex-grow">{field.label || "Next Page"}</span>
+                    <hr className="flex-grow border-border invisible" />
                 </div>
             ) : (
                 <>
@@ -106,8 +106,8 @@ function FormPreview({ formData }: { formData: Partial<CreateFormValues> }) {
                     <div className="space-y-1 mt-1">
                         {field.options.map(opt => (
                         <div key={opt.value} className="flex items-center space-x-2">
-                            <input type="radio" id={`${field.id}-${opt.value}`} value={opt.value} name={field.id} disabled />
-                            <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
+                            <input type="radio" id={`${field.id}-preview-create-${opt.value}`} value={opt.value} name={`${field.id}-preview-create`} disabled />
+                            <Label htmlFor={`${field.id}-preview-create-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
                         </div>
                         ))}
                     </div>
@@ -116,8 +116,8 @@ function FormPreview({ formData }: { formData: Partial<CreateFormValues> }) {
                     <div className="space-y-1 mt-1">
                         {field.options.map(opt => (
                         <div key={opt.value} className="flex items-center space-x-2">
-                            <input type="checkbox" id={`${field.id}-${opt.value}`} value={opt.value} disabled />
-                            <Label htmlFor={`${field.id}-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
+                            <input type="checkbox" id={`${field.id}-preview-create-${opt.value}`} value={opt.value} disabled />
+                            <Label htmlFor={`${field.id}-preview-create-${opt.value}`} className="font-normal text-muted-foreground/80">{opt.label}</Label>
                         </div>
                         ))}
                     </div>
@@ -170,6 +170,7 @@ async function saveFormToBackend(formData: CreateFormValues, userId: string): Pr
     required: f.type === "pagebreak" ? false : f.required, 
     placeholder: f.placeholder || "",
     description: f.description || "",
+    // minRating and maxRating are not part of formFieldSchema yet, add if needed
   }));
 
   const surveyDataForDb = {
@@ -187,15 +188,18 @@ async function saveFormToBackend(formData: CreateFormValues, userId: string): Pr
     const docRef = await addDoc(collection(db, "surveys"), surveyDataForDb);
     console.log("Form saved with ID: ", docRef.id);
     
+    // Update questions with the new surveyId - this is conceptual for the return type
+    // In reality, if questions were a subcollection, you'd save them separately.
+    // For embedded fields, this is less critical, but good for type consistency.
     const savedFields = questionsForDb.map(q => ({ ...q, surveyId: docRef.id }));
     
     return {
       id: docRef.id,
       ...surveyDataForDb,
       fields: savedFields, 
-      createdAt: new Date().toISOString(), 
-      updatedAt: new Date().toISOString(), 
-    } as AppFormSchema;
+      createdAt: new Date().toISOString(), // Approximate, serverTimestamp is accurate in DB
+      updatedAt: new Date().toISOString(), // Approximate
+    } as AppFormSchema; // Cast as AppFormSchema might be needed if Timestamp types differ
 
   } catch (error) {
     console.error("Error saving form to Firestore:", error);
@@ -217,13 +221,13 @@ export default function CreateFormPage() {
     defaultValues: {
       title: "",
       description: "",
-      fields: [{ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "", type: "text", required: false, options: [] }],
+      fields: [{ id: `field_${Math.random().toString(36).substr(2, 9)}`, label: "Your first question", type: "text", required: false, options: [] }],
       isAnonymous: false,
       aiMode: "assisted_creation",
     },
   });
   
-  const watchedFormData = form.watch(); // Watch all form data for live preview
+  const watchedFormData = form.watch(); 
 
   const { fields, append, remove, move } = useFieldArray({
     control: form.control,
@@ -271,7 +275,6 @@ export default function CreateFormPage() {
     setIsSavingForm(true);
     try {
       const savedForm = await saveFormToBackend(data, currentUser.uid);
-      console.log("Form saved:", savedForm);
       toast({
         title: "Form Created Successfully!",
         description: (
@@ -413,6 +416,11 @@ export default function CreateFormPage() {
                                     ))}
                                   </SelectContent>
                                 </Select>
+                                {form.watch(`fields.${index}.type`) === 'pagebreak' && (
+                                  <ShadcnFormDescription className="mt-1 text-xs">
+                                    This creates a new page for the respondent. Subsequent fields will appear on this new page.
+                                  </ShadcnFormDescription>
+                                )}
                                 <FormMessage />
                               </FormItem>
                             )}
