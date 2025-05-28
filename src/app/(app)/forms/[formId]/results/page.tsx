@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Smile, Users, Download, Filter, CheckCircle, Percent, FileText as FileTextIconLucide, Image as ImageIconLucide, Loader2, Copy } from "lucide-react";
 import { summarizeFeedback, SummarizeFeedbackInput } from '@/ai/flows/summarize-feedback';
 import { useToast } from "@/hooks/use-toast";
-import type { FormSchema, FormResponse, QuestionSchema } from "@/types";
+import type { FormSchema, FormResponse, QuestionSchema, FormFieldOption } from "@/types";
 import {
   ChartContainer,
   ChartTooltip,
@@ -17,32 +17,29 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, BarChart as RechartsBarChart, PieChart as RechartsPieChart } from 'recharts';
+import { Bar, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, BarChart, PieChart } from 'recharts';
 import { Progress } from '@/components/ui/progress';
 import { CSVLink } from 'react-csv';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
-import { useParams } from 'next/navigation'; // Import useParams
+import { doc, onSnapshot, collection, query, where, Timestamp } from 'firebase/firestore';
+import { useParams } from 'next/navigation';
 
 const ratingChartConfig = {
   satisfaction: { label: "Satisfaction", color: "hsl(var(--chart-1))" },
   recommendation: { label: "Recommendation", color: "hsl(var(--chart-2))" },
 } satisfies Record<string, any>;
 
-// Mock sentiment data for now, replace with dynamic data if AI sentiment analysis is implemented per response
 const mockSentimentData = [
   { name: 'Positive', value: 0, fill: 'hsl(var(--chart-4))' },
   { name: 'Neutral', value: 0, fill: 'hsl(var(--chart-2))' },
   { name: 'Negative', value: 0, fill: 'hsl(var(--chart-5))' },
 ];
 
-// Removed params from props, will use useParams hook
 export default function FormResultsPage() {
-  const paramsHook = useParams(); // Use the hook
-  const formId = paramsHook.formId as string; // Extract formId, ensure it's typed as string
-
+  const paramsHook = useParams();
+  const formId = paramsHook.formId as string;
   const { toast } = useToast();
   const [form, setForm] = useState<FormSchema | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
@@ -80,15 +77,27 @@ export default function FormResultsPage() {
 
   const prepareCsvData = useCallback((currentForm: FormSchema | null, fetchedResponses: FormResponse[]) => {
     if (currentForm && currentForm.fields && fetchedResponses.length > 0) {
-      const headers = currentForm.fields.map(field => ({ label: field.text, key: field.id }));
+      const headers = currentForm.fields
+        .filter(field => field.type !== 'pagebreak') // Exclude pagebreak fields from CSV
+        .map(field => ({ label: field.text, key: field.id }));
       headers.unshift({ label: "Response ID", key: "id" });
       headers.push({ label: "Submitted At", key: "timestamp" });
 
       const dataForCsv = fetchedResponses.map(res => {
         const row: any = { id: res.id.substring(0, 8), timestamp: new Date(res.timestamp).toLocaleString() };
-        currentForm.fields.forEach(field => {
-          row[field.id] = res.answers[field.id] ?? 'N/A';
-        });
+        currentForm.fields
+          .filter(field => field.type !== 'pagebreak')
+          .forEach(field => {
+            const answer = res.answers[field.id];
+            if (Array.isArray(answer)) {
+                row[field.id] = answer.join(', ');
+            } else if (field.options && typeof answer === 'string') {
+                const selectedOption = field.options.find(opt => opt.value === answer);
+                row[field.id] = selectedOption ? selectedOption.label : answer;
+            } else {
+                row[field.id] = answer ?? 'N/A';
+            }
+          });
         return row;
       });
       setCsvData([{ headers, data: dataForCsv }]);
@@ -98,7 +107,6 @@ export default function FormResultsPage() {
   }, []);
 
   useEffect(() => {
-    // Ensure formId from useParams is available before proceeding
     if (!formId) {
       setIsLoading(false);
       toast({ title: "Error", description: "Form ID is missing.", variant: "destructive" });
@@ -108,20 +116,19 @@ export default function FormResultsPage() {
     setIsLoading(true);
     let currentForm: FormSchema | null = null;
 
-    // Fetch form details
     const formDocRef = doc(db, "surveys", formId);
     const unsubscribeForm = onSnapshot(formDocRef, (docSnap) => {
       if (docSnap.exists()) {
-        const formData = docSnap.data() as Omit<FormSchema, 'id' | 'createdAt' | 'updatedAt'>;
-        const createdAt = formData.createdAt && typeof formData.createdAt === 'object' && 'toDate' in formData.createdAt ? (formData.createdAt as any).toDate().toISOString() : formData.createdAt as string;
-        const updatedAt = formData.updatedAt && typeof formData.updatedAt === 'object' && 'toDate' in formData.updatedAt ? (formData.updatedAt as any).toDate().toISOString() : formData.updatedAt as string;
+        const formData = docSnap.data();
+        const createdAt = formData.createdAt instanceof Timestamp ? formData.createdAt.toDate().toISOString() : formData.createdAt as string;
+        const updatedAt = formData.updatedAt instanceof Timestamp ? formData.updatedAt.toDate().toISOString() : formData.updatedAt as string;
         
         currentForm = {
           id: docSnap.id,
           ...formData,
           createdAt: createdAt,
           updatedAt: updatedAt,
-          fields: formData.fields || [] // ensure fields is an array
+          fields: formData.fields || []
         } as FormSchema;
         setForm(currentForm);
       } else {
@@ -129,12 +136,10 @@ export default function FormResultsPage() {
         setForm(null);
         currentForm = null;
       }
-      // Responses might have loaded first, recalculate if form loads later
       if(responses.length > 0 && currentForm) {
         calculateRatingDistribution(responses, currentForm);
         prepareCsvData(currentForm, responses);
       }
-       // Set loading to false only if responses are also loaded or if form is not found
       if (!responses.length && !docSnap.exists()) {
         setIsLoading(false);
       }
@@ -146,13 +151,12 @@ export default function FormResultsPage() {
       setIsLoading(false);
     });
 
-    // Fetch responses for this form
     const responsesQuery = query(collection(db, "responses"), where("formId", "==", formId));
     const unsubscribeResponses = onSnapshot(responsesQuery, (querySnapshot) => {
       const fetchedResponses: FormResponse[] = [];
       querySnapshot.forEach((docSnap) => {
-        const responseData = docSnap.data() as Omit<FormResponse, 'id' | 'timestamp'>;
-        const timestamp = responseData.timestamp && typeof responseData.timestamp === 'object' && 'toDate' in responseData.timestamp ? (responseData.timestamp as any).toDate().toISOString() : responseData.timestamp as string;
+        const responseData = docSnap.data();
+        const timestamp = responseData.timestamp instanceof Timestamp ? responseData.timestamp.toDate().toISOString() : responseData.timestamp as string;
         fetchedResponses.push({ 
             id: docSnap.id, 
             ...responseData,
@@ -161,7 +165,7 @@ export default function FormResultsPage() {
       });
       setResponses(fetchedResponses);
       
-      if (currentForm) { // form might have loaded already
+      if (currentForm) {
         calculateRatingDistribution(fetchedResponses, currentForm);
         prepareCsvData(currentForm, fetchedResponses);
       }
@@ -177,7 +181,7 @@ export default function FormResultsPage() {
       unsubscribeForm();
       unsubscribeResponses();
     };
-  }, [formId, toast, calculateRatingDistribution, prepareCsvData]); // formId is now from useParams
+  }, [formId, toast, calculateRatingDistribution, prepareCsvData]);
 
 
   const handleSummarizeFeedback = async () => {
@@ -187,8 +191,7 @@ export default function FormResultsPage() {
     }
     setIsSummarizing(true);
     try {
-      // Identify text-based fields for summary
-      const textFields = form?.fields.filter(f => f.type === 'textarea' || f.type === 'text').map(f => f.id) || [];
+      const textFields = form?.fields.filter(f => (f.type === 'textarea' || f.type === 'text') && f.type !== 'pagebreak').map(f => f.id) || [];
       const feedbackTexts = responses
         .map(r => textFields.map(fieldId => r.answers[fieldId]).filter(ans => typeof ans === 'string' && ans.trim() !== '').join(' '))
         .filter(text => text.trim() !== '') as string[];
@@ -223,7 +226,7 @@ export default function FormResultsPage() {
         const canvasWidth = canvas.width;
         const canvasHeight = canvas.height;
         const ratio = canvasWidth / canvasHeight;
-        let newCanvasWidth = pdfWidth - 20; // Add some margin
+        let newCanvasWidth = pdfWidth - 20;
         let newCanvasHeight = newCanvasWidth / ratio;
 
         if (newCanvasHeight > pdfHeight - 20) {
@@ -231,7 +234,7 @@ export default function FormResultsPage() {
             newCanvasWidth = newCanvasHeight * ratio;
         }
         const xOffset = (pdfWidth - newCanvasWidth) / 2;
-        const yOffset = 10; // Margin from top
+        const yOffset = 10;
 
         pdf.text(form?.title || "Form Results", pdfWidth / 2, yOffset, { align: 'center' });
         pdf.addImage(imgData, 'PNG', xOffset, yOffset + 10, newCanvasWidth, newCanvasHeight);
@@ -275,6 +278,22 @@ export default function FormResultsPage() {
 
   const averageSatisfaction = ratingQuestion && totalResponses > 0 ? responses.reduce((acc, r) => acc + (Number(r.answers[ratingQuestion.id]) || 0), 0) / totalResponses : 0;
   const averageRecommendation = recommendationQuestion && totalResponses > 0 ? responses.reduce((acc, r) => acc + (Number(r.answers[recommendationQuestion.id]) || 0), 0) / totalResponses : 0;
+
+  const getAnswerDisplayValue = (field: QuestionSchema, answer: any): string => {
+    if (answer === null || typeof answer === 'undefined') return 'N/A';
+    if (Array.isArray(answer)) {
+      // For checkbox type, map values to labels
+      if (field.type === 'checkbox' && field.options) {
+        return answer.map(val => field.options?.find(opt => opt.value === val)?.label || val).join(', ');
+      }
+      return answer.join(', ');
+    }
+    if (field.options && typeof answer === 'string') {
+      const selectedOption = field.options.find(opt => opt.value === answer);
+      return selectedOption ? selectedOption.label : String(answer);
+    }
+    return String(answer);
+  };
 
 
   return (
@@ -384,13 +403,15 @@ export default function FormResultsPage() {
               <CardDescription>Browse through each submitted response.</CardDescription>
             </CardHeader>
             <CardContent>
-              {responses.length > 0 ? (
+              {responses.length > 0 && form && form.fields ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[100px]">Response ID</TableHead>
-                      {form && form.fields.map(field => (
-                        <TableHead key={field.id}>{field.text}</TableHead>
+                      {form.fields
+                        .filter(field => field.type !== 'pagebreak') // Exclude pagebreak fields from table headers
+                        .map(field => (
+                          <TableHead key={field.id}>{field.text}</TableHead>
                       ))}
                       <TableHead className="text-right w-[150px]">Submitted At</TableHead>
                     </TableRow>
@@ -399,12 +420,12 @@ export default function FormResultsPage() {
                     {responses.map((response) => (
                       <TableRow key={response.id}>
                         <TableCell className="font-medium text-xs">{response.id.substring(0,8)}...</TableCell>
-                        {form && form.fields.map(field => (
-                          <TableCell key={field.id}>
-                            {Array.isArray(response.answers[field.id]) 
-                              ? (response.answers[field.id] as string[]).join(', ')
-                              : String(response.answers[field.id] ?? 'N/A')}
-                          </TableCell>
+                        {form.fields
+                          .filter(field => field.type !== 'pagebreak')
+                          .map(field => (
+                            <TableCell key={field.id}>
+                              {getAnswerDisplayValue(field, response.answers[field.id])}
+                            </TableCell>
                         ))}
                         <TableCell className="text-right text-xs">{new Date(response.timestamp).toLocaleString()}</TableCell>
                       </TableRow>
@@ -431,13 +452,13 @@ export default function FormResultsPage() {
                     {ratingDistribution.length > 0 ? (
                       <ChartContainer config={ratingChartConfig} className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <RechartsBarChart data={ratingDistribution} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                          <BarChart data={ratingDistribution} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="rating" tickLine={false} axisLine={false} />
                             <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
                             <RechartsTooltip content={<ChartTooltipContent />} />
                             <Bar dataKey="count" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                          </RechartsBarChart>
+                          </BarChart>
                         </ResponsiveContainer>
                       </ChartContainer>
                     ) : <p className="text-muted-foreground text-center py-10">Not enough data or rating question not configured for this chart.</p>}
@@ -451,7 +472,7 @@ export default function FormResultsPage() {
                   <CardContent>
                     <ChartContainer config={{}} className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                          <RechartsPieChart>
+                          <PieChart>
                               <RechartsTooltip content={<ChartTooltipContent nameKey="name" />} />
                               <Pie data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label >
                                   {sentimentData.map((entry, index) => (
@@ -459,7 +480,7 @@ export default function FormResultsPage() {
                                   ))}
                               </Pie>
                               <RechartsLegend content={<ChartLegendContent />} />
-                          </RechartsPieChart>
+                          </PieChart>
                       </ResponsiveContainer>
                     </ChartContainer>
                   </CardContent>
@@ -470,4 +491,3 @@ export default function FormResultsPage() {
     </div>
   );
 }
-
