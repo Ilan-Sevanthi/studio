@@ -18,20 +18,10 @@ import { auth } from '../../lib/firebase';
 import { useRouter } from 'next/navigation';
 import { LogOut, User, Settings, CreditCard, Users, Mail } from "lucide-react"
 import { signOut } from 'firebase/auth';
-import { useToast } from "@/hooks/use-toast"; // Added useToast import
-
-// Mock user data for display
-const mockUser = {
-  name: "Sofia Davis",
-  email: "sofia.davis@example.com",
-  avatarUrl: "https://placehold.co/100x100.png",
-  // Initials removed, will derive fallback dynamically
-}
+import { useToast } from "@/hooks/use-toast"; 
 
 export function UserNav() {
-  // In a real app, you'd get user data from an auth provider (e.g., Firebase auth.currentUser)
-  // For this example, we'll continue using mockUser but derive fallback dynamically.
-  const user = auth.currentUser || mockUser; // Prefer real user, fallback to mock
+  const user = auth.currentUser; 
   const router = useRouter();
   const { toast } = useToast();
 
@@ -54,11 +44,12 @@ export function UserNav() {
   };
 
   let displayNameFallback = "U";
-  const currentUserName = user?.displayName || mockUser.name; // Use Firebase user's displayName if available
-  const currentUserEmail = user?.email || mockUser.email;
+  const currentUserName = user?.displayName;
+  const currentUserEmail = user?.email;
+  const currentUserPhotoURL = user?.photoURL;
 
   if (currentUserName) {
-    displayNameFallback = currentUserName.charAt(0).toUpperCase();
+    displayNameFallback = currentUserName.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase();
   } else if (currentUserEmail) {
     displayNameFallback = currentUserEmail.charAt(0).toUpperCase();
   }
@@ -68,7 +59,7 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8" data-ai-hint="user avatar">
-            <AvatarImage src={user?.photoURL || mockUser.avatarUrl} alt={currentUserName || "User"} />
+            <AvatarImage src={currentUserPhotoURL || ""} alt={currentUserName || "User avatar"} />
             <AvatarFallback>{displayNameFallback}</AvatarFallback>
           </Avatar>
         </Button>
@@ -76,9 +67,9 @@ export function UserNav() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{currentUserName}</p>
+            <p className="text-sm font-medium leading-none">{currentUserName || "User"}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              {currentUserEmail}
+              {currentUserEmail || "No email"}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -92,16 +83,16 @@ export function UserNav() {
             </DropdownMenuItem>
           </Link>
           <Link href="/settings/billing" passHref>
-            <DropdownMenuItem>
+            <DropdownMenuItem disabled> {/* Assuming billing is not implemented yet */}
               <CreditCard className="mr-2 h-4 w-4" />
               <span>Billing</span>
               <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
             </DropdownMenuItem>
           </Link>
           <Link href="/settings/appearance" passHref>
-            <DropdownMenuItem>
+             <DropdownMenuItem disabled> {/* Assuming appearance is not implemented yet */}
               <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
+              <span>Appearance</span>
               <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
             </DropdownMenuItem>
           </Link>

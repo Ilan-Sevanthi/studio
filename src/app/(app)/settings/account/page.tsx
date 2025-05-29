@@ -13,16 +13,17 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { auth, db } from "@/lib/firebase"; // Import auth and db
+import { auth, db } from "@/lib/firebase"; 
 import { updateProfile, updateEmail, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const accountFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   email: z.string().email("Invalid email address."),
   bio: z.string().max(160, "Bio must not be longer than 160 characters.").optional(),
-  avatarUrl: z.string().url("Invalid URL for avatar.").optional(), // Added for consistency, though not fully managed
+  avatarUrl: z.string().url("Invalid URL for avatar.").optional().or(z.literal("")), 
 });
 
 type AccountFormValues = z.infer<typeof accountFormSchema>;
@@ -33,6 +34,7 @@ interface UserProfileData extends AccountFormValues {
 
 export default function AccountSettingsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [currentUserData, setCurrentUserData] = useState<UserProfileData | null>(null);
@@ -48,43 +50,43 @@ export default function AccountSettingsPage() {
   });
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      setIsLoading(true);
-      const user = auth.currentUser;
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        // Fetch additional profile data from Firestore (e.g., bio)
-        // For this example, we'll simulate fetching the bio.
-        // In a real app, you'd fetch from doc(db, "users", user.uid)
-        let bioFromDb = "Product designer passionate about user experience and intuitive interfaces."; // Default mock bio
+        setIsLoading(true);
+        let bioFromDb = "";
+        let avatarFromDb = user.photoURL || ""; // Prioritize Firebase Auth photoURL
         const userDocRef = doc(db, "users", user.uid);
         try {
           const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists() && userDocSnap.data().bio) {
-            bioFromDb = userDocSnap.data().bio;
+          if (userDocSnap.exists()) {
+            bioFromDb = userDocSnap.data().bio || "";
+            // If you store a separate avatar URL in Firestore and want to prioritize it:
+            // avatarFromDb = userDocSnap.data().avatarUrl || user.photoURL || "";
           }
         } catch (error) {
-          console.warn("Could not fetch user bio from Firestore, using default.", error)
+          console.warn("Could not fetch user extended profile from Firestore.", error)
         }
 
         const initials = user.displayName?.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() || user.email?.charAt(0).toUpperCase() || "U";
+        
         const userData: UserProfileData = {
           name: user.displayName || "",
           email: user.email || "",
           bio: bioFromDb,
-          avatarUrl: user.photoURL || "https://placehold.co/150x150.png",
+          avatarUrl: avatarFromDb,
           initials: initials,
         };
         setCurrentUserData(userData);
-        form.reset(userData); // Pre-fill the form
+        form.reset(userData);
+        setIsLoading(false);
       } else {
         toast({ title: "Error", description: "Not authenticated. Please log in.", variant: "destructive" });
-        // router.push("/login"); // Optionally redirect
+        router.push("/login"); 
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    };
-
-    fetchUserData();
-  }, [form, toast]);
+    });
+    return () => unsubscribe(); // Cleanup subscription
+  }, [form, toast, router]);
 
   async function onSubmit(data: AccountFormValues) {
     setIsSaving(true);
@@ -96,47 +98,48 @@ export default function AccountSettingsPage() {
     }
 
     try {
-      // Update Firebase Auth profile (displayName, photoURL)
       const profileUpdates: { displayName?: string; photoURL?: string } = {};
       if (data.name !== user.displayName) {
         profileUpdates.displayName = data.name;
       }
-      // For avatarUrl - if you were managing a custom URL and not Firebase Auth's photoURL directly
-      // you might update it here, but for simplicity, we assume data.avatarUrl isn't directly changed in this form.
-      // If data.avatarUrl were different and meant to be photoURL, add: profileUpdates.photoURL = data.avatarUrl;
+      // If you were managing avatarUrl separately and wanted to update photoURL:
+      // if (data.avatarUrl && data.avatarUrl !== user.photoURL) {
+      //   profileUpdates.photoURL = data.avatarUrl;
+      // }
 
       if (Object.keys(profileUpdates).length > 0) {
         await updateProfile(user, profileUpdates);
       }
 
-      // Handle email update (sensitive operation)
       if (data.email !== user.email) {
-        // IMPORTANT: Directly updating email requires recent re-authentication.
-        // For a production app, you'd implement a re-authentication flow.
-        // Example:
-        // const credential = EmailAuthProvider.credential(user.email!, prompt("Enter your current password"));
-        // await reauthenticateWithCredential(user, credential);
-        // await updateEmail(user, data.email);
+        // TODO: Implement proper re-authentication flow for email change
         toast({
           title: "Email Update (Simulated)",
-          description: `In a real app, changing email to ${data.email} would require re-authentication. Email not changed in this demo.`,
+          description: `Changing email to ${data.email} requires re-authentication. Email not changed in this demo.`,
           variant: "default",
           duration: 7000,
         });
-        // To actually attempt, you'd use: await updateEmail(user, data.email);
-        // This will likely fail without re-authentication.
       }
 
-      // Update additional profile data in Firestore (e.g., bio)
       const userDocRef = doc(db, "users", user.uid);
-      await setDoc(userDocRef, { bio: data.bio || "" }, { merge: true }); // Using setDoc with merge to create/update
+      await setDoc(userDocRef, { 
+        bio: data.bio || "",
+        name: data.name, // Store name in Firestore as well for consistency
+        email: user.email, // Store email for querying/display if needed
+        // avatarUrl: data.avatarUrl || user.photoURL // If you manage avatarUrl separately
+      }, { merge: true });
 
       toast({
         title: "Profile Updated",
-        description: "Your account details have been successfully updated (email update is simulated).",
+        description: "Your account details have been successfully updated.",
       });
-      // Refresh displayed data
-      setCurrentUserData(prev => prev ? {...prev, name: data.name, bio: data.bio} : null);
+      setCurrentUserData(prev => prev ? {
+        ...prev, 
+        name: data.name, 
+        bio: data.bio,
+        // avatarUrl: data.avatarUrl || user.photoURL || prev.avatarUrl // Update local state's avatarUrl
+        initials: data.name?.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() || prev.initials
+      } : null);
 
     } catch (error: any) {
       console.error("Error updating profile:", error);
@@ -162,6 +165,11 @@ export default function AccountSettingsPage() {
       </div>
     );
   }
+  
+  const displayedAvatarUrl = currentUserData?.avatarUrl || auth.currentUser?.photoURL || "";
+  const displayedName = currentUserData?.name || auth.currentUser?.displayName || "";
+  const displayedInitials = currentUserData?.initials || displayedName?.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() || "U";
+
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
@@ -181,8 +189,8 @@ export default function AccountSettingsPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center space-x-4">
                 <Avatar className="h-20 w-20" data-ai-hint="user avatar large">
-                  <AvatarImage src={currentUserData?.avatarUrl || auth.currentUser?.photoURL || ""} alt={currentUserData?.name} />
-                  <AvatarFallback>{currentUserData?.initials || "U"}</AvatarFallback>
+                  <AvatarImage src={displayedAvatarUrl} alt={displayedName} />
+                  <AvatarFallback>{displayedInitials}</AvatarFallback>
                 </Avatar>
                 <Button variant="outline" type="button" disabled>Change Avatar (TODO)</Button>
               </div>
@@ -209,7 +217,8 @@ export default function AccountSettingsPage() {
                     <FormControl>
                       <Input type="email" placeholder="your.email@example.com" {...field} disabled={isSaving} />
                     </FormControl>
-                    <FormMessage />
+                     <FormMessage />
+                    <p className="text-xs text-muted-foreground pt-1">Email change requires re-authentication (not implemented in this demo).</p>
                   </FormItem>
                 )}
               />
