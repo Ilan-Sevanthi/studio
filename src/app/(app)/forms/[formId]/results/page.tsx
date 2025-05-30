@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Smile, Users, Download, Filter, CheckCircle, Percent, FileText as FileTextIconLucide, Image as ImageIconLucide, Loader2, Copy } from "lucide-react";
+import { MessageSquare, Smile, Users, Download, Filter, CheckCircle, Percent, FileTextIcon as PageBreakIcon, Image as ImageIconLucide, Loader2, Copy } from "lucide-react";
 import { summarizeFeedback, SummarizeFeedbackInput } from '@/ai/flows/summarize-feedback';
 import { useToast } from "@/hooks/use-toast";
 import type { FormSchema, FormResponse, QuestionSchema, FormFieldOption } from "@/types";
@@ -23,8 +23,9 @@ import { CSVLink } from 'react-csv';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, collection, query, where, Timestamp, orderBy } from 'firebase/firestore'; // Added orderBy
+import { doc, onSnapshot, collection, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
+import Link from "next/link"; // Added import
 
 const ratingChartConfig = {
   satisfaction: { label: "Satisfaction", color: "hsl(var(--chart-1))" },
@@ -33,13 +34,16 @@ const ratingChartConfig = {
 
 // Mock data for sentiment - will remain mock until AI flow provides structured sentiment
 const mockSentimentData = [
-  { name: 'Positive', value: 70, fill: 'hsl(var(--chart-4))' }, // Example values
+  { name: 'Positive', value: 70, fill: 'hsl(var(--chart-4))' },
   { name: 'Neutral', value: 20, fill: 'hsl(var(--chart-2))' },
   { name: 'Negative', value: 10, fill: 'hsl(var(--chart-5))' },
 ];
 
 export default function FormResultsPage() {
-  const paramsHook = useParams();
+  const params = useParams();
+  const { formId: formIdFromParams } = params; // Destructure and rename for clarity
+  const formId = typeof formIdFromParams === 'string' ? formIdFromParams : Array.isArray(formIdFromParams) ? formIdFromParams[0] : '';
+
   const { toast } = useToast();
   const [form, setForm] = useState<FormSchema | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
@@ -48,51 +52,89 @@ export default function FormResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [ratingDistribution, setRatingDistribution] = useState<any[]>([]);
   const [csvData, setCsvData] = useState<any[]>([]);
-  // Sentiment data remains mock for now
   const [sentimentData, setSentimentData] = useState(mockSentimentData);
 
-  // Ensure formId is a string
-  const formId = typeof paramsHook?.formId === 'string' ? paramsHook.formId : '';
 
+  const getAnswerDisplayValue = useCallback((field: QuestionSchema, answer: any): string => {
+    if (answer === null || typeof answer === 'undefined' || answer === '') return 'N/A';
+    
+    if (Array.isArray(answer)) { // For checkbox type
+      if (field.options && field.options.length > 0) {
+        return answer.map(val => field.options?.find(opt => opt.value === val)?.label || val).join(', ');
+      }
+      return answer.join(', ');
+    }
+
+    if (field.options && field.options.length > 0 && (typeof answer === 'string' || typeof answer === 'number')) {
+      const selectedOption = field.options.find(opt => opt.value === String(answer));
+      return selectedOption ? selectedOption.label : String(answer);
+    }
+    
+    if (field.type === 'rating' && typeof answer === 'number') {
+        return `${answer} Star${answer > 1 ? 's' : ''}`;
+    }
+    
+    if (field.type === 'nps' && typeof answer === 'number') {
+        return `${answer} / 10`;
+    }
+
+    if (field.type === 'date' && typeof answer === 'string') {
+      // Attempt to format date if it's a valid date string, otherwise return as is
+      try {
+        const date = new Date(answer);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleDateString();
+        }
+      } catch (e) { /* ignore, return raw string */ }
+    }
+
+    return String(answer);
+  }, []);
 
   const calculateRatingDistribution = useCallback((fetchedResponses: FormResponse[], currentForm: FormSchema | null) => {
     if (!currentForm || !currentForm.fields || fetchedResponses.length === 0) {
       setRatingDistribution([]);
       return;
     }
-    const ratingQuestion = currentForm.fields.find(f => f.type === 'rating');
+    // Prioritize 'rating' type, then 'nps' if no 'rating' type
+    const ratingQuestion = currentForm.fields.find(f => f.type === 'rating') || currentForm.fields.find(f => f.type === 'nps');
+    
     if (ratingQuestion) {
-      const satisfactionCounts: Record<number, number> = {};
+      const counts: Record<string, number> = {}; // Use string for rating key to handle NPS (0-10) and Rating (1-5)
+      const maxScale = ratingQuestion.type === 'nps' ? 10 : (ratingQuestion.maxRating || 5);
+      const minScale = ratingQuestion.type === 'nps' ? 0 : (ratingQuestion.minRating || 1);
+
       fetchedResponses.forEach(r => {
         const answer = r.answers[ratingQuestion.id];
         if (typeof answer === 'number' && !isNaN(answer)) {
           const rating = Math.round(answer);
-          satisfactionCounts[rating] = (satisfactionCounts[rating] || 0) + 1;
+          // Ensure rating is within expected scale
+          if (rating >= minScale && rating <= maxScale) {
+             const ratingKey = ratingQuestion.type === 'nps' ? `${rating}` : `⭐ ${rating}`;
+             counts[ratingKey] = (counts[ratingKey] || 0) + 1;
+          }
         }
       });
-      const distData = Object.entries(satisfactionCounts).map(([rating, count]) => ({
-        rating: `⭐ ${rating}`,
-        count,
-      })).sort((a, b) => parseInt(a.rating.replace('⭐ ', '')) - parseInt(b.rating.replace('⭐ ', '')));
+
+      // Create data for all possible ratings in the scale, even if count is 0
+      const distData = [];
+      for (let i = minScale; i <= maxScale; i++) {
+          const ratingKey = ratingQuestion.type === 'nps' ? `${i}` : `⭐ ${i}`;
+          distData.push({
+              rating: ratingKey,
+              count: counts[ratingKey] || 0,
+          });
+      }
+      
+      // Sort if it's star rating, NPS is already in order
+      if (ratingQuestion.type !== 'nps') {
+        distData.sort((a, b) => parseInt(a.rating.replace('⭐ ', '')) - parseInt(b.rating.replace('⭐ ', '')));
+      }
+
       setRatingDistribution(distData);
     } else {
       setRatingDistribution([]);
     }
-  }, []);
-
-  const getAnswerDisplayValue = useCallback((field: QuestionSchema, answer: any): string => {
-    if (answer === null || typeof answer === 'undefined' || answer === '') return 'N/A';
-    if (Array.isArray(answer)) {
-      if (field.options && field.options.length > 0) {
-        return answer.map(val => field.options?.find(opt => opt.value === val)?.label || val).join(', ');
-      }
-      return answer.join(', ');
-    }
-    if (field.options && field.options.length > 0 && (typeof answer === 'string' || typeof answer === 'number')) {
-      const selectedOption = field.options.find(opt => opt.value === String(answer));
-      return selectedOption ? selectedOption.label : String(answer);
-    }
-    return String(answer);
   }, []);
 
 
@@ -122,7 +164,7 @@ export default function FormResultsPage() {
   useEffect(() => {
     if (!formId) {
       setIsLoading(false);
-      toast({ title: "Error", description: "Form ID is missing.", variant: "destructive" });
+      toast({ title: "Error", description: "Form ID is missing. Cannot load results.", variant: "destructive" });
       return;
     }
 
@@ -149,12 +191,15 @@ export default function FormResultsPage() {
         setForm(null);
         currentFormCache = null;
       }
+      // Recalculate based on current responses state if form changes
       if (responses.length > 0 && currentFormCache) {
         calculateRatingDistribution(responses, currentFormCache);
         prepareCsvData(currentFormCache, responses);
       }
-      if (!responses.length && !docSnap.exists()) { 
-        setIsLoading(false);
+      // If responses haven't loaded yet, but form has, don't stop loading
+      // Stop loading only if responses are also processed or form not found
+      if ((responses.length > 0 && currentFormCache) || !docSnap.exists()) {
+        setIsLoading(false); 
       }
     }, (error) => {
       console.error("Error fetching form details:", error);
@@ -195,7 +240,7 @@ export default function FormResultsPage() {
       unsubscribeForm();
       unsubscribeResponses();
     };
-  }, [formId, toast, calculateRatingDistribution, prepareCsvData]);
+  }, [formId, toast, calculateRatingDistribution, prepareCsvData]); // Added formId and toast to dependencies
 
 
   const handleSummarizeFeedback = async () => {
@@ -491,7 +536,7 @@ export default function FormResultsPage() {
                   <CardHeader>
                       <CardTitle>Overall Rating Distribution</CardTitle>
                        <CardDescription>
-                        {ratingQuestionDetails ? `Based on question: "${ratingQuestionDetails.text}"` : "Rating question not found or no responses."}
+                        {ratingQuestionDetails || npsQuestionDetails ? `Based on question: "${(ratingQuestionDetails || npsQuestionDetails)?.text}"` : "Rating/NPS question not found or no responses."}
                        </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -510,7 +555,7 @@ export default function FormResultsPage() {
                           </BarChart>
                         </ResponsiveContainer>
                       </ChartContainer>
-                    ) : <p className="text-muted-foreground text-center py-10">Not enough data or rating question not configured for this chart.</p>}
+                    ) : <p className="text-muted-foreground text-center py-10">Not enough data or rating/NPS question not configured for this chart.</p>}
                   </CardContent>
               </Card>
               <Card>
