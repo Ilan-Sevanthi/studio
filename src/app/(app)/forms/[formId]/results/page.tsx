@@ -23,7 +23,7 @@ import { CSVLink } from 'react-csv';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, collection, query, where, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, Timestamp, orderBy } from 'firebase/firestore'; // Added orderBy
 import { useParams } from 'next/navigation';
 
 const ratingChartConfig = {
@@ -40,7 +40,6 @@ const mockSentimentData = [
 
 export default function FormResultsPage() {
   const paramsHook = useParams();
-  const formId = paramsHook.formId as string;
   const { toast } = useToast();
   const [form, setForm] = useState<FormSchema | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
@@ -52,25 +51,27 @@ export default function FormResultsPage() {
   // Sentiment data remains mock for now
   const [sentimentData, setSentimentData] = useState(mockSentimentData);
 
+  // Ensure formId is a string
+  const formId = typeof paramsHook?.formId === 'string' ? paramsHook.formId : '';
+
 
   const calculateRatingDistribution = useCallback((fetchedResponses: FormResponse[], currentForm: FormSchema | null) => {
     if (!currentForm || !currentForm.fields || fetchedResponses.length === 0) {
       setRatingDistribution([]);
       return;
     }
-    const ratingQuestion = currentForm.fields.find(f => f.type === 'rating'); // Assuming first rating question for simplicity
+    const ratingQuestion = currentForm.fields.find(f => f.type === 'rating');
     if (ratingQuestion) {
       const satisfactionCounts: Record<number, number> = {};
       fetchedResponses.forEach(r => {
         const answer = r.answers[ratingQuestion.id];
-        // Ensure answer is a number and not undefined/null
         if (typeof answer === 'number' && !isNaN(answer)) {
-          const rating = Math.round(answer); // Ensure it's an integer for grouping
+          const rating = Math.round(answer);
           satisfactionCounts[rating] = (satisfactionCounts[rating] || 0) + 1;
         }
       });
       const distData = Object.entries(satisfactionCounts).map(([rating, count]) => ({
-        rating: `⭐ ${rating}`, // Or just rating number: rating
+        rating: `⭐ ${rating}`,
         count,
       })).sort((a, b) => parseInt(a.rating.replace('⭐ ', '')) - parseInt(b.rating.replace('⭐ ', '')));
       setRatingDistribution(distData);
@@ -87,8 +88,8 @@ export default function FormResultsPage() {
       }
       return answer.join(', ');
     }
-    if (field.options && field.options.length > 0 && typeof answer === 'string') {
-      const selectedOption = field.options.find(opt => opt.value === answer);
+    if (field.options && field.options.length > 0 && (typeof answer === 'string' || typeof answer === 'number')) {
+      const selectedOption = field.options.find(opt => opt.value === String(answer));
       return selectedOption ? selectedOption.label : String(answer);
     }
     return String(answer);
@@ -148,13 +149,11 @@ export default function FormResultsPage() {
         setForm(null);
         currentFormCache = null;
       }
-      // If responses are already loaded, recalculate distributions/CSV
       if (responses.length > 0 && currentFormCache) {
         calculateRatingDistribution(responses, currentFormCache);
         prepareCsvData(currentFormCache, responses);
       }
-       // Set loading to false only after both form and initial responses might have been fetched
-      if (!responses.length && !docSnap.exists()) { // Or if form doesn't exist
+      if (!responses.length && !docSnap.exists()) { 
         setIsLoading(false);
       }
     }, (error) => {
@@ -180,11 +179,11 @@ export default function FormResultsPage() {
       });
       setResponses(fetchedResponses);
       
-      if (currentFormCache) { // Use the cached form if available
+      if (currentFormCache) { 
         calculateRatingDistribution(fetchedResponses, currentFormCache);
         prepareCsvData(currentFormCache, fetchedResponses);
       }
-      setIsLoading(false); // Data has been fetched or attempted
+      setIsLoading(false); 
 
     }, (error) => {
       console.error("Error fetching responses:", error);
@@ -196,7 +195,7 @@ export default function FormResultsPage() {
       unsubscribeForm();
       unsubscribeResponses();
     };
-  }, [formId, toast, calculateRatingDistribution, prepareCsvData]); // Added dependencies
+  }, [formId, toast, calculateRatingDistribution, prepareCsvData]);
 
 
   const handleSummarizeFeedback = async () => {
@@ -211,7 +210,7 @@ export default function FormResultsPage() {
     }
 
     setIsSummarizing(true);
-    setSummary(null); // Clear previous summary
+    setSummary(null); 
 
     try {
       const textFieldsIds = form.fields
@@ -260,29 +259,28 @@ export default function FormResultsPage() {
     const chartsElement = document.getElementById('charts-section-to-export');
     if (chartsElement) {
       toast({ title: "Generating PDF...", description: "Please wait while the PDF is being prepared." });
-      html2canvas(chartsElement, { scale: 2, backgroundColor: null }).then(canvas => { // Added backgroundColor: null for transparent bg if underlying is themed
+      html2canvas(chartsElement, { scale: 2, backgroundColor: null }).then(canvas => { 
         const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
         
-        // Calculate aspect ratio to fit image in PDF
         const imgProps = pdf.getImageProperties(imgData);
         const ratio = imgProps.width / imgProps.height;
         
-        let newCanvasWidth = pdfWidth - 20; // Margin of 10mm on each side
+        let newCanvasWidth = pdfWidth - 20; 
         let newCanvasHeight = newCanvasWidth / ratio;
 
-        if (newCanvasHeight > pdfHeight - 30) { // Margin of 10mm top, 20mm bottom for title
+        if (newCanvasHeight > pdfHeight - 30) { 
             newCanvasHeight = pdfHeight - 30;
             newCanvasWidth = newCanvasHeight * ratio;
         }
         const xOffset = (pdfWidth - newCanvasWidth) / 2;
-        const yOffset = 10; // Top margin for title
+        const yOffset = 10; 
 
         pdf.setFontSize(16);
         pdf.text(form?.title || "Form Results", pdfWidth / 2, yOffset, { align: 'center' });
-        pdf.addImage(imgData, 'PNG', xOffset, yOffset + 10, newCanvasWidth, newCanvasHeight); // Add image below title
+        pdf.addImage(imgData, 'PNG', xOffset, yOffset + 10, newCanvasWidth, newCanvasHeight);
         pdf.save(`${form?.title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'form'}-results-charts.pdf`);
         toast({ title: "PDF Exported!", description: "Charts have been exported to PDF." });
       }).catch(err => {
@@ -296,7 +294,7 @@ export default function FormResultsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-8 items-center justify-center h-[calc(100vh-150px)]"> {/* Adjust height for better centering */}
+      <div className="flex flex-col gap-8 items-center justify-center h-[calc(100vh-150px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="text-muted-foreground">Loading form results...</p>
       </div>
@@ -318,7 +316,7 @@ export default function FormResultsPage() {
   }
 
   const totalResponses = responses.length;
-  const ratingQuestionDetails = form.fields.find(f => f.type === 'rating'); // More generic rating question
+  const ratingQuestionDetails = form.fields.find(f => f.type === 'rating'); 
   const npsQuestionDetails = form.fields.find(f => f.type === 'nps');
 
   const averageRating = ratingQuestionDetails && totalResponses > 0 
