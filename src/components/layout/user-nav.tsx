@@ -54,12 +54,15 @@ export function UserNav() {
     displayNameFallback = currentUserEmail.charAt(0).toUpperCase();
   }
 
+  // Ensure we pass null if photoURL is not a valid string
+  const avatarSrc = currentUserPhotoURL && currentUserPhotoURL.trim() !== "" ? currentUserPhotoURL : null;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8" data-ai-hint="user avatar">
-            <AvatarImage src={currentUserPhotoURL || ""} alt={currentUserName || "User avatar"} />
+            <AvatarImage src={avatarSrc} alt={currentUserName || "User avatar"} />
             <AvatarFallback>{displayNameFallback}</AvatarFallback>
           </Avatar>
         </Button>
