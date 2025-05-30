@@ -31,10 +31,11 @@ const ratingChartConfig = {
   recommendation: { label: "Recommendation", color: "hsl(var(--chart-2))" },
 } satisfies Record<string, any>;
 
+// Mock data for sentiment - will remain mock until AI flow provides structured sentiment
 const mockSentimentData = [
-  { name: 'Positive', value: 0, fill: 'hsl(var(--chart-4))' },
-  { name: 'Neutral', value: 0, fill: 'hsl(var(--chart-2))' },
-  { name: 'Negative', value: 0, fill: 'hsl(var(--chart-5))' },
+  { name: 'Positive', value: 70, fill: 'hsl(var(--chart-4))' }, // Example values
+  { name: 'Neutral', value: 20, fill: 'hsl(var(--chart-2))' },
+  { name: 'Negative', value: 10, fill: 'hsl(var(--chart-5))' },
 ];
 
 export default function FormResultsPage() {
@@ -48,37 +49,56 @@ export default function FormResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [ratingDistribution, setRatingDistribution] = useState<any[]>([]);
   const [csvData, setCsvData] = useState<any[]>([]);
+  // Sentiment data remains mock for now
   const [sentimentData, setSentimentData] = useState(mockSentimentData);
 
 
   const calculateRatingDistribution = useCallback((fetchedResponses: FormResponse[], currentForm: FormSchema | null) => {
-    if (!currentForm || !currentForm.fields) {
+    if (!currentForm || !currentForm.fields || fetchedResponses.length === 0) {
       setRatingDistribution([]);
       return;
     }
-    const ratingQuestion = currentForm.fields.find(f => f.type === 'rating' && f.text.toLowerCase().includes('satisfaction'));
+    const ratingQuestion = currentForm.fields.find(f => f.type === 'rating'); // Assuming first rating question for simplicity
     if (ratingQuestion) {
       const satisfactionCounts: Record<number, number> = {};
       fetchedResponses.forEach(r => {
-        const rating = r.answers[ratingQuestion.id] as number;
-        if (typeof rating === 'number') {
+        const answer = r.answers[ratingQuestion.id];
+        // Ensure answer is a number and not undefined/null
+        if (typeof answer === 'number' && !isNaN(answer)) {
+          const rating = Math.round(answer); // Ensure it's an integer for grouping
           satisfactionCounts[rating] = (satisfactionCounts[rating] || 0) + 1;
         }
       });
       const distData = Object.entries(satisfactionCounts).map(([rating, count]) => ({
-        rating: `⭐ ${rating}`,
+        rating: `⭐ ${rating}`, // Or just rating number: rating
         count,
-      })).sort((a, b) => parseInt(a.rating.split(" ")[1]) - parseInt(b.rating.split(" ")[1]));
+      })).sort((a, b) => parseInt(a.rating.replace('⭐ ', '')) - parseInt(b.rating.replace('⭐ ', '')));
       setRatingDistribution(distData);
     } else {
       setRatingDistribution([]);
     }
   }, []);
 
+  const getAnswerDisplayValue = useCallback((field: QuestionSchema, answer: any): string => {
+    if (answer === null || typeof answer === 'undefined' || answer === '') return 'N/A';
+    if (Array.isArray(answer)) {
+      if (field.options && field.options.length > 0) {
+        return answer.map(val => field.options?.find(opt => opt.value === val)?.label || val).join(', ');
+      }
+      return answer.join(', ');
+    }
+    if (field.options && field.options.length > 0 && typeof answer === 'string') {
+      const selectedOption = field.options.find(opt => opt.value === answer);
+      return selectedOption ? selectedOption.label : String(answer);
+    }
+    return String(answer);
+  }, []);
+
+
   const prepareCsvData = useCallback((currentForm: FormSchema | null, fetchedResponses: FormResponse[]) => {
     if (currentForm && currentForm.fields && fetchedResponses.length > 0) {
       const headers = currentForm.fields
-        .filter(field => field.type !== 'pagebreak') // Exclude pagebreak fields from CSV
+        .filter(field => field.type !== 'pagebreak')
         .map(field => ({ label: field.text, key: field.id }));
       headers.unshift({ label: "Response ID", key: "id" });
       headers.push({ label: "Submitted At", key: "timestamp" });
@@ -88,15 +108,7 @@ export default function FormResultsPage() {
         currentForm.fields
           .filter(field => field.type !== 'pagebreak')
           .forEach(field => {
-            const answer = res.answers[field.id];
-            if (Array.isArray(answer)) {
-                row[field.id] = answer.join(', ');
-            } else if (field.options && typeof answer === 'string') {
-                const selectedOption = field.options.find(opt => opt.value === answer);
-                row[field.id] = selectedOption ? selectedOption.label : answer;
-            } else {
-                row[field.id] = answer ?? 'N/A';
-            }
+            row[field.id] = getAnswerDisplayValue(field, res.answers[field.id]);
           });
         return row;
       });
@@ -104,7 +116,7 @@ export default function FormResultsPage() {
     } else {
       setCsvData([]);
     }
-  }, []);
+  }, [getAnswerDisplayValue]);
 
   useEffect(() => {
     if (!formId) {
@@ -114,7 +126,7 @@ export default function FormResultsPage() {
     }
 
     setIsLoading(true);
-    let currentForm: FormSchema | null = null;
+    let currentFormCache: FormSchema | null = null;
 
     const formDocRef = doc(db, "surveys", formId);
     const unsubscribeForm = onSnapshot(formDocRef, (docSnap) => {
@@ -123,35 +135,37 @@ export default function FormResultsPage() {
         const createdAt = formData.createdAt instanceof Timestamp ? formData.createdAt.toDate().toISOString() : formData.createdAt as string;
         const updatedAt = formData.updatedAt instanceof Timestamp ? formData.updatedAt.toDate().toISOString() : formData.updatedAt as string;
         
-        currentForm = {
+        currentFormCache = {
           id: docSnap.id,
           ...formData,
           createdAt: createdAt,
           updatedAt: updatedAt,
           fields: formData.fields || []
         } as FormSchema;
-        setForm(currentForm);
+        setForm(currentFormCache);
       } else {
         toast({ title: "Error", description: "Form not found.", variant: "destructive" });
         setForm(null);
-        currentForm = null;
+        currentFormCache = null;
       }
-      if(responses.length > 0 && currentForm) {
-        calculateRatingDistribution(responses, currentForm);
-        prepareCsvData(currentForm, responses);
+      // If responses are already loaded, recalculate distributions/CSV
+      if (responses.length > 0 && currentFormCache) {
+        calculateRatingDistribution(responses, currentFormCache);
+        prepareCsvData(currentFormCache, responses);
       }
-      if (!responses.length && !docSnap.exists()) {
+       // Set loading to false only after both form and initial responses might have been fetched
+      if (!responses.length && !docSnap.exists()) { // Or if form doesn't exist
         setIsLoading(false);
       }
     }, (error) => {
       console.error("Error fetching form details:", error);
       toast({ title: "Error", description: "Could not fetch form details.", variant: "destructive" });
       setForm(null);
-      currentForm = null;
+      currentFormCache = null;
       setIsLoading(false);
     });
 
-    const responsesQuery = query(collection(db, "responses"), where("formId", "==", formId));
+    const responsesQuery = query(collection(db, "responses"), where("formId", "==", formId), orderBy("timestamp", "desc"));
     const unsubscribeResponses = onSnapshot(responsesQuery, (querySnapshot) => {
       const fetchedResponses: FormResponse[] = [];
       querySnapshot.forEach((docSnap) => {
@@ -161,15 +175,16 @@ export default function FormResultsPage() {
             id: docSnap.id, 
             ...responseData,
             timestamp: timestamp,
+            answers: responseData.answers || {}
         } as FormResponse);
       });
       setResponses(fetchedResponses);
       
-      if (currentForm) {
-        calculateRatingDistribution(fetchedResponses, currentForm);
-        prepareCsvData(currentForm, fetchedResponses);
+      if (currentFormCache) { // Use the cached form if available
+        calculateRatingDistribution(fetchedResponses, currentFormCache);
+        prepareCsvData(currentFormCache, fetchedResponses);
       }
-      setIsLoading(false);
+      setIsLoading(false); // Data has been fetched or attempted
 
     }, (error) => {
       console.error("Error fetching responses:", error);
@@ -181,24 +196,45 @@ export default function FormResultsPage() {
       unsubscribeForm();
       unsubscribeResponses();
     };
-  }, [formId, toast, calculateRatingDistribution, prepareCsvData]);
+  }, [formId, toast, calculateRatingDistribution, prepareCsvData]); // Added dependencies
 
 
   const handleSummarizeFeedback = async () => {
-    if (!responses.length) {
-      toast({ title: "No Responses", description: "There are no feedback responses to summarize.", variant: "destructive" });
+    if (!form || !form.fields) {
+      toast({ title: "Form Not Loaded", description: "Form data is not available to identify text fields.", variant: "destructive" });
       return;
     }
+    if (!responses.length) {
+      toast({ title: "No Responses", description: "There are no feedback responses to summarize.", variant: "default" });
+      setSummary("No responses available to summarize.");
+      return;
+    }
+
     setIsSummarizing(true);
+    setSummary(null); // Clear previous summary
+
     try {
-      const textFields = form?.fields.filter(f => (f.type === 'textarea' || f.type === 'text') && f.type !== 'pagebreak').map(f => f.id) || [];
-      const feedbackTexts = responses
-        .map(r => textFields.map(fieldId => r.answers[fieldId]).filter(ans => typeof ans === 'string' && ans.trim() !== '').join(' '))
-        .filter(text => text.trim() !== '') as string[];
+      const textFieldsIds = form.fields
+        .filter(f => (f.type === 'textarea' || f.type === 'text') && f.type !== 'pagebreak')
+        .map(f => f.id);
+
+      if (textFieldsIds.length === 0) {
+        toast({ title: "No Text Fields", description: "This form does not contain any text or textarea fields to summarize.", variant: "default" });
+        setSummary("No text-based questions found in this form to summarize.");
+        setIsSummarizing(false);
+        return;
+      }
+
+      const feedbackTexts = responses.flatMap(r => 
+        textFieldsIds.map(fieldId => {
+          const answer = r.answers[fieldId];
+          return typeof answer === 'string' && answer.trim() !== '' ? answer.trim() : null;
+        })
+      ).filter(text => text !== null) as string[];
 
       if (feedbackTexts.length === 0) {
-        toast({ title: "No Text Feedback", description: "No textual feedback found to summarize.", variant: "default" });
-        setSummary("No textual feedback provided by users.");
+        toast({ title: "No Text Feedback", description: "No textual feedback provided by users for the text fields.", variant: "default" });
+        setSummary("No textual feedback provided by users for summarization.");
         setIsSummarizing(false);
         return;
       }
@@ -207,37 +243,46 @@ export default function FormResultsPage() {
       const result = await summarizeFeedback(input);
       setSummary(result.summary);
       toast({ title: "Success", description: "Feedback summarized by AI." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI Summary Error:", error);
-      toast({ title: "Error", description: "Failed to summarize feedback.", variant: "destructive" });
+      let errorMsg = "Failed to summarize feedback.";
+      if (error.message) {
+        errorMsg += ` Details: ${error.message}`;
+      }
+      toast({ title: "Summarization Error", description: errorMsg, variant: "destructive" });
+      setSummary("Could not generate summary due to an error.");
+    } finally {
+      setIsSummarizing(false);
     }
-    setIsSummarizing(false);
   };
 
   const handleExportPDF = () => {
     const chartsElement = document.getElementById('charts-section-to-export');
     if (chartsElement) {
       toast({ title: "Generating PDF...", description: "Please wait while the PDF is being prepared." });
-      html2canvas(chartsElement, { scale: 2 }).then(canvas => {
+      html2canvas(chartsElement, { scale: 2, backgroundColor: null }).then(canvas => { // Added backgroundColor: null for transparent bg if underlying is themed
         const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-        const ratio = canvasWidth / canvasHeight;
-        let newCanvasWidth = pdfWidth - 20;
+        
+        // Calculate aspect ratio to fit image in PDF
+        const imgProps = pdf.getImageProperties(imgData);
+        const ratio = imgProps.width / imgProps.height;
+        
+        let newCanvasWidth = pdfWidth - 20; // Margin of 10mm on each side
         let newCanvasHeight = newCanvasWidth / ratio;
 
-        if (newCanvasHeight > pdfHeight - 20) {
-            newCanvasHeight = pdfHeight - 20;
+        if (newCanvasHeight > pdfHeight - 30) { // Margin of 10mm top, 20mm bottom for title
+            newCanvasHeight = pdfHeight - 30;
             newCanvasWidth = newCanvasHeight * ratio;
         }
         const xOffset = (pdfWidth - newCanvasWidth) / 2;
-        const yOffset = 10;
+        const yOffset = 10; // Top margin for title
 
+        pdf.setFontSize(16);
         pdf.text(form?.title || "Form Results", pdfWidth / 2, yOffset, { align: 'center' });
-        pdf.addImage(imgData, 'PNG', xOffset, yOffset + 10, newCanvasWidth, newCanvasHeight);
+        pdf.addImage(imgData, 'PNG', xOffset, yOffset + 10, newCanvasWidth, newCanvasHeight); // Add image below title
         pdf.save(`${form?.title?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'form'}-results-charts.pdf`);
         toast({ title: "PDF Exported!", description: "Charts have been exported to PDF." });
       }).catch(err => {
@@ -251,7 +296,7 @@ export default function FormResultsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-8 items-center justify-center h-full">
+      <div className="flex flex-col gap-8 items-center justify-center h-[calc(100vh-150px)]"> {/* Adjust height for better centering */}
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="text-muted-foreground">Loading form results...</p>
       </div>
@@ -260,12 +305,12 @@ export default function FormResultsPage() {
 
   if (!form) {
     return (
-      <div className="flex flex-col items-center justify-center h-full">
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-150px)]">
         <Card className="w-full max-w-md text-center p-8">
           <CardTitle className="text-2xl">Form Not Found</CardTitle>
           <CardDescription>The requested form could not be loaded or does not exist.</CardDescription>
           <Button asChild className="mt-4">
-            <a href="/forms">Go to Forms</a>
+            <Link href="/forms">Go to Forms</Link>
           </Button>
         </Card>
       </div>
@@ -273,27 +318,22 @@ export default function FormResultsPage() {
   }
 
   const totalResponses = responses.length;
-  const ratingQuestion = form.fields.find(f => f.type === 'rating' && f.text.toLowerCase().includes('satisfaction'));
-  const recommendationQuestion = form.fields.find(f => f.type === 'rating' && f.text.toLowerCase().includes('recommend'));
+  const ratingQuestionDetails = form.fields.find(f => f.type === 'rating'); // More generic rating question
+  const npsQuestionDetails = form.fields.find(f => f.type === 'nps');
 
-  const averageSatisfaction = ratingQuestion && totalResponses > 0 ? responses.reduce((acc, r) => acc + (Number(r.answers[ratingQuestion.id]) || 0), 0) / totalResponses : 0;
-  const averageRecommendation = recommendationQuestion && totalResponses > 0 ? responses.reduce((acc, r) => acc + (Number(r.answers[recommendationQuestion.id]) || 0), 0) / totalResponses : 0;
-
-  const getAnswerDisplayValue = (field: QuestionSchema, answer: any): string => {
-    if (answer === null || typeof answer === 'undefined') return 'N/A';
-    if (Array.isArray(answer)) {
-      // For checkbox type, map values to labels
-      if (field.type === 'checkbox' && field.options) {
-        return answer.map(val => field.options?.find(opt => opt.value === val)?.label || val).join(', ');
-      }
-      return answer.join(', ');
-    }
-    if (field.options && typeof answer === 'string') {
-      const selectedOption = field.options.find(opt => opt.value === answer);
-      return selectedOption ? selectedOption.label : String(answer);
-    }
-    return String(answer);
-  };
+  const averageRating = ratingQuestionDetails && totalResponses > 0 
+    ? responses.reduce((acc, r) => {
+        const answer = r.answers[ratingQuestionDetails.id];
+        return acc + (typeof answer === 'number' && !isNaN(answer) ? answer : 0);
+      }, 0) / totalResponses 
+    : 0;
+  
+  const averageNPS = npsQuestionDetails && totalResponses > 0
+    ? responses.reduce((acc, r) => {
+        const answer = r.answers[npsQuestionDetails.id];
+        return acc + (typeof answer === 'number' && !isNaN(answer) ? answer : 0);
+      }, 0) / totalResponses
+    : 0;
 
 
   return (
@@ -334,22 +374,26 @@ export default function FormResultsPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Satisfaction</CardTitle>
+            <CardTitle className="text-sm font-medium">Avg. Rating</CardTitle>
             <Smile className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{averageSatisfaction.toFixed(1)} / {ratingQuestion?.maxRating || 5}</div>
-             <Progress value={ratingQuestion?.maxRating ? (averageSatisfaction / ratingQuestion.maxRating) * 100 : 0} className="h-2 mt-1" />
+            <div className="text-2xl font-bold">
+                {ratingQuestionDetails ? `${averageRating.toFixed(1)} / ${ratingQuestionDetails.maxRating || 5}` : 'N/A'}
+            </div>
+             <Progress value={ratingQuestionDetails?.maxRating ? (averageRating / ratingQuestionDetails.maxRating) * 100 : 0} className="h-2 mt-1" />
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Recommendation</CardTitle>
+            <CardTitle className="text-sm font-medium">Avg. NPS</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{averageRecommendation.toFixed(1)} / {recommendationQuestion?.maxRating || 10}</div>
-            <Progress value={recommendationQuestion?.maxRating ? (averageRecommendation / recommendationQuestion.maxRating) * 100 : 0} className="h-2 mt-1" />
+             <div className="text-2xl font-bold">
+                {npsQuestionDetails ? `${averageNPS.toFixed(1)} / 10` : 'N/A'}
+            </div>
+            <Progress value={npsQuestionDetails ? (averageNPS / 10) * 100 : 0} className="h-2 mt-1" />
           </CardContent>
         </Card>
          <Card>
@@ -358,7 +402,7 @@ export default function FormResultsPage() {
             <Percent className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">N/A%</div> {/* Placeholder */}
+            <div className="text-2xl font-bold">N/A%</div> {/* Placeholder - Requires tracking form views vs submissions */}
             <p className="text-xs text-muted-foreground">of viewed forms completed</p>
           </CardContent>
         </Card>
@@ -378,19 +422,19 @@ export default function FormResultsPage() {
               <CardDescription>Key themes and sentiments identified by AI from textual feedback.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isSummarizing && <div className="flex items-center space-x-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> <p>Generating summary...</p></div>}
+              {isSummarizing && <div className="flex items-center space-x-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> <p>Generating summary from responses...</p></div>}
               {!isSummarizing && summary && (
-                <div className="prose dark:prose-invert max-w-none p-4 bg-muted/50 rounded-md whitespace-pre-wrap">
+                <div className="prose dark:prose-invert max-w-none p-4 bg-muted/20 rounded-md whitespace-pre-wrap text-sm">
                   {summary}
                 </div>
               )}
                {!isSummarizing && !summary && (
-                <p className="text-muted-foreground">Click the button to generate an AI summary of the feedback.</p>
+                <p className="text-muted-foreground">Click the button to generate an AI summary of the textual feedback from responses.</p>
               )}
             </CardContent>
             <CardFooter>
               <Button onClick={handleSummarizeFeedback} disabled={isSummarizing || responses.length === 0}>
-                {isSummarizing ? "Summarizing..." : "Generate AI Summary"}
+                {isSummarizing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Summarizing...</> : "Generate AI Summary"}
               </Button>
             </CardFooter>
           </Card>
@@ -400,7 +444,7 @@ export default function FormResultsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Individual Responses ({responses.length})</CardTitle>
-              <CardDescription>Browse through each submitted response.</CardDescription>
+              <CardDescription>Browse through each submitted response. Answers are displayed as submitted, with labels for choice-based questions.</CardDescription>
             </CardHeader>
             <CardContent>
               {responses.length > 0 && form && form.fields ? (
@@ -409,7 +453,7 @@ export default function FormResultsPage() {
                     <TableRow>
                       <TableHead className="w-[100px]">Response ID</TableHead>
                       {form.fields
-                        .filter(field => field.type !== 'pagebreak') // Exclude pagebreak fields from table headers
+                        .filter(field => field.type !== 'pagebreak') 
                         .map(field => (
                           <TableHead key={field.id}>{field.text}</TableHead>
                       ))}
@@ -419,15 +463,19 @@ export default function FormResultsPage() {
                   <TableBody>
                     {responses.map((response) => (
                       <TableRow key={response.id}>
-                        <TableCell className="font-medium text-xs">{response.id.substring(0,8)}...</TableCell>
+                        <TableCell className="font-medium text-xs text-muted-foreground hover:text-foreground transition-colors">
+                           <button onClick={() => {navigator.clipboard.writeText(response.id); toast({title: "Copied!", description: "Response ID copied."})}} title="Copy Response ID">
+                            {response.id.substring(0,8)}... <Copy className="inline h-3 w-3 ml-1" />
+                           </button>
+                        </TableCell>
                         {form.fields
                           .filter(field => field.type !== 'pagebreak')
                           .map(field => (
-                            <TableCell key={field.id}>
+                            <TableCell key={field.id} className="text-sm">
                               {getAnswerDisplayValue(field, response.answers[field.id])}
                             </TableCell>
                         ))}
-                        <TableCell className="text-right text-xs">{new Date(response.timestamp).toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">{new Date(response.timestamp).toLocaleString()}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -443,20 +491,23 @@ export default function FormResultsPage() {
             <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
               <Card>
                   <CardHeader>
-                      <CardTitle>Overall Satisfaction Distribution</CardTitle>
+                      <CardTitle>Overall Rating Distribution</CardTitle>
                        <CardDescription>
-                        {ratingQuestion ? `Based on question: "${ratingQuestion.text}"` : "Rating question for satisfaction not found."}
+                        {ratingQuestionDetails ? `Based on question: "${ratingQuestionDetails.text}"` : "Rating question not found or no responses."}
                        </CardDescription>
                   </CardHeader>
                   <CardContent>
                     {ratingDistribution.length > 0 ? (
                       <ChartContainer config={ratingChartConfig} className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={ratingDistribution} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                          <BarChart data={ratingDistribution} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="rating" tickLine={false} axisLine={false} />
-                            <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                            <RechartsTooltip content={<ChartTooltipContent />} />
+                            <XAxis dataKey="rating" tickLine={false} axisLine={false} fontSize={12} />
+                            <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} width={30} />
+                            <RechartsTooltip 
+                                content={<ChartTooltipContent />} 
+                                cursor={{fill: 'hsl(var(--muted)/0.5)'}}
+                            />
                             <Bar dataKey="count" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
@@ -466,14 +517,16 @@ export default function FormResultsPage() {
               </Card>
               <Card>
                   <CardHeader>
-                      <CardTitle>Sentiment Analysis (Placeholder)</CardTitle>
-                      <CardDescription>This is a mock chart. Implement AI sentiment analysis per response for real data.</CardDescription>
+                      <CardTitle>Sentiment Analysis (Mock Data)</CardTitle>
+                      <CardDescription>This is a placeholder chart. Dynamic sentiment requires AI processing per response.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ChartContainer config={{}} className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                              <RechartsTooltip content={<ChartTooltipContent nameKey="name" />} />
+                              <RechartsTooltip 
+                                content={<ChartTooltipContent nameKey="name" />} 
+                                />
                               <Pie data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label >
                                   {sentimentData.map((entry, index) => (
                                       <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -485,6 +538,7 @@ export default function FormResultsPage() {
                     </ChartContainer>
                   </CardContent>
               </Card>
+              {/* Add more charts here as needed */}
             </div>
         </TabsContent>
       </Tabs>
