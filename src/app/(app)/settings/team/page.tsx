@@ -10,16 +10,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { MoreHorizontal, PlusCircle, Trash2, UserPlus, Send, RefreshCw, XCircle } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Trash2, UserPlus, Send, RefreshCw, XCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import type { AppUser, UserRole, Invite, InviteStatus } from "@/types";
+import { auth } from "@/lib/firebase"; // Import auth
+import { getFunctions, httpsCallable } from "firebase/functions"; // Import for Firebase Functions
 
 // Mock data - replace with actual data fetching and state management
-const mockCurrentUserId = "user_owner_123"; // Assume this is the ID of the currently logged-in user
+// const mockCurrentUserId = "user_owner_123"; // To be replaced by auth.currentUser.uid
 
 const initialMockTeamMembers: AppUser[] = [
   { id: "user_owner_123", name: "Sofia Davis (Owner)", email: "sofia.davis@example.com", role: "Owner", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "SD", joinedDate: "2023-01-10" },
@@ -29,32 +31,40 @@ const initialMockTeamMembers: AppUser[] = [
 ];
 
 const initialMockPendingInvites: Invite[] = [
-  { id: "invite1", inviteeEmail: "new.user@example.com", role: "Editor", status: "pending", teamId: "team1", inviterId: mockCurrentUserId, createdAt: new Date().toISOString() },
-  { id: "invite2", inviteeEmail: "another.dev@example.com", role: "Viewer", status: "pending", teamId: "team1", inviterId: mockCurrentUserId, createdAt: new Date(Date.now() - 86400000 * 2).toISOString() }, // 2 days ago
+  // Update mock invites to not include formId, role is team role
+  { id: "invite1", inviteeEmail: "new.user@example.com", role: "Editor", status: "pending", teamId: "team1", inviterId: "user_owner_123", token: "mocktoken1", createdAt: new Date().toISOString() },
+  { id: "invite2", inviteeEmail: "another.dev@example.com", role: "Viewer", status: "pending", teamId: "team1", inviterId: "user_owner_123", token: "mocktoken2", createdAt: new Date(Date.now() - 86400000 * 2).toISOString() }, // 2 days ago
 ];
 
 const inviteMemberSchema = z.object({
   email: z.string().email("Invalid email address."),
-  role: z.enum(["Admin", "Editor", "Viewer"] as [UserRole, ...UserRole[]]).refine(val => val !== "Owner", { message: "Cannot invite as Owner."}),
+  role: z.enum(["Admin", "Editor", "Viewer"] as [Exclude<UserRole, "Owner">, ...Exclude<UserRole, "Owner">[]]).default("Viewer"),
 });
 
 type InviteMemberFormValues = z.infer<typeof inviteMemberSchema>;
 
-// Placeholder function for simulating backend call to send invite
-async function sendInviteToBackend(inviteData: Omit<Invite, 'id' | 'status' | 'createdAt'>): Promise<Invite> {
-  console.log("Simulating sending invite to backend:", inviteData);
-  // In a real app, this would call a Cloud Function e.g., /sendInvite
-  // which would send an email and create an invite document in Firestore.
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-  
-  // For now, return a mock invite object as if it was created in backend
-  const newInvite: Invite = {
-    ...inviteData,
-    id: `invite_sim_${Date.now()}`,
-    status: "pending",
-    createdAt: new Date().toISOString(),
-  };
-  return newInvite;
+// Placeholder/Updated function for sending invite
+// This will eventually call the 'sendTeamInvite' Firebase Function
+async function callSendTeamInviteFunction(inviteData: { inviteeEmail: string, role: Exclude<UserRole, "Owner"> }): Promise<{success: boolean, message: string, invite?: Invite}> {
+  const functions = getFunctions(auth.app); // Get functions instance
+  const sendTeamInvite = httpsCallable(functions, 'sendTeamInvite'); // Function name
+
+  try {
+    console.log("Calling 'sendTeamInvite' Firebase Function with data:", inviteData);
+    const result = await sendTeamInvite(inviteData) as any; // Cast 'any' for now
+    
+    if (result.data.success) {
+      console.log("Firebase Function 'sendTeamInvite' succeeded:", result.data);
+      // The actual invite object might be returned by the function
+      return { success: true, message: result.data.message || "Invitation sent successfully.", invite: result.data.invite };
+    } else {
+      console.error("Firebase Function 'sendTeamInvite' failed:", result.data.message);
+      return { success: false, message: result.data.message || "Failed to send invitation via function." };
+    }
+  } catch (error) {
+    console.error("Error calling 'sendTeamInvite' Firebase Function:", error);
+    return { success: false, message: "An error occurred while trying to send the invitation." };
+  }
 }
 
 
@@ -64,6 +74,7 @@ export default function TeamSettingsPage() {
   const [pendingInvites, setPendingInvites] = React.useState<Invite[]>(initialMockPendingInvites);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = React.useState(false);
   const [isSubmittingInvite, setIsSubmittingInvite] = React.useState(false);
+  const currentUser = auth.currentUser;
 
   const form = useForm<InviteMemberFormValues>({
     resolver: zodResolver(inviteMemberSchema),
@@ -76,50 +87,68 @@ export default function TeamSettingsPage() {
   async function onInviteSubmit(data: InviteMemberFormValues) {
     setIsSubmittingInvite(true);
     
-    const emailExists = teamMembers.some(member => member.email === data.email) || 
-                        pendingInvites.some(invite => invite.inviteeEmail === data.email && invite.status === "pending");
-
-    if (emailExists) {
-      toast({
-        title: "Email Already Exists",
-        description: `${data.email} is already a team member or has a pending invitation.`,
-        variant: "destructive",
-      });
+    if (!currentUser) {
+      toast({ title: "Authentication Error", description: "You must be logged in.", variant: "destructive" });
       setIsSubmittingInvite(false);
       return;
     }
-        
-    if (teamMembers.filter(m => m.role !== "Owner").length >= 3) {
+
+    // Note: Team limit check currently uses mock data.
+    // In a real app, fetch actual teamMembers and pendingInvites counts from Firestore.
+    const currentMemberCount = initialMockTeamMembers.filter(m => m.role !== "Owner").length;
+    const currentPendingInviteCount = initialMockPendingInvites.filter(inv => inv.status === "pending").length;
+    const totalNonOwnerInvitedOrMember = currentMemberCount + currentPendingInviteCount;
+
+    if (totalNonOwnerInvitedOrMember >= 3) {
         toast({
-            title: "Team Limit Reached",
-            description: "You can invite up to 3 additional team members (excluding the Owner). Please manage existing members to add new ones.",
+            title: "Team Limit Reached (3 Members)",
+            description: "You can invite up to 3 additional team members (excluding the Owner). Please manage existing members or invites.",
             variant: "destructive",
+            duration: 7000,
         });
         setIsSubmittingInvite(false);
         return;
     }
+        
+    const emailExistsAsMember = initialMockTeamMembers.some(member => member.email === data.email);
+    const emailHasPendingInvite = initialMockPendingInvites.some(invite => invite.inviteeEmail === data.email && invite.status === "pending");
+
+    if (emailExistsAsMember) {
+      toast({ title: "User Exists", description: `${data.email} is already a team member.`, variant: "destructive" });
+      setIsSubmittingInvite(false);
+      return;
+    }
+    if (emailHasPendingInvite) {
+      toast({ title: "Invite Pending", description: `${data.email} already has a pending invitation.`, variant: "default" });
+      setIsSubmittingInvite(false);
+      return;
+    }
 
     try {
-      const newInviteData: Omit<Invite, 'id' | 'status' | 'createdAt'> = {
-        inviteeEmail: data.email,
-        role: data.role,
-        teamId: "team1", // Assuming a single team context for now
-        inviterId: mockCurrentUserId,
-      };
-      const createdInvite = await sendInviteToBackend(newInviteData);
+      // Call the new function that will interact with Firebase Functions
+      const result = await callSendTeamInviteFunction({ inviteeEmail: data.email, role: data.role as Exclude<UserRole, "Owner"> });
       
-      setPendingInvites(prev => [createdInvite, ...prev]);
-      toast({
-        title: "Invitation Sent",
-        description: `${data.email} has been invited as a ${data.role}. A real email would be sent in a production app.`,
-      });
-      setIsInviteDialogOpen(false);
-      form.reset();
-    } catch (error) {
-      console.error("Error sending invite:", error);
+      if (result.success && result.invite) {
+        // Add to mock pending invites for now. In a real app, this would update from a Firestore listener.
+        setPendingInvites(prev => [result.invite!, ...prev]); 
+        toast({
+          title: "Invitation Sent (Simulation)",
+          description: result.message || `${data.email} has been invited as a ${data.role}. (Backend function call simulated)`,
+        });
+        setIsInviteDialogOpen(false);
+        form.reset();
+      } else {
+         toast({
+          title: "Invite Error",
+          description: result.message || "Could not send the invitation via backend function.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) { // Catch errors from callSendTeamInviteFunction itself
+      console.error("Error during invite submission process:", error);
       toast({
         title: "Invite Error",
-        description: "Could not send the invitation. Please try again.",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -128,7 +157,7 @@ export default function TeamSettingsPage() {
   }
   
   const removeMember = async (memberId: string) => {
-    if (memberId === mockCurrentUserId) {
+    if (currentUser && memberId === currentUser.uid) { // Check against actual current user
       toast({ title: "Action Denied", description: "Owner cannot be removed.", variant: "destructive"});
       return;
     }
@@ -151,6 +180,7 @@ export default function TeamSettingsPage() {
     const invite = pendingInvites.find(inv => inv.id === inviteId);
     // Simulate backend call to resend invite
     console.log("Simulating resend of invite:", inviteId);
+    // TODO: This would ideally call a 'resendTeamInvite' Firebase Function
     await new Promise(resolve => setTimeout(resolve, 500));
     toast({ title: "Invitation Resent", description: `Invitation to ${invite?.inviteeEmail} has been resent (simulated).` });
   }
@@ -164,15 +194,16 @@ export default function TeamSettingsPage() {
         </div>
         <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button disabled={!currentUser || teamMembers.find(m=>m.id === currentUser?.uid)?.role !== "Owner"}> 
+              {/* Disable if not owner based on mock data for now */}
               <UserPlus className="mr-2 h-4 w-4" /> Invite Member
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Invite New Member</DialogTitle>
+              <DialogTitle>Invite New Team Member</DialogTitle>
               <DialogDescription>
-                Enter the email address and select a role for the new team member. An invitation will be sent to them.
+                Enter the email address and select a team role. An invitation will be sent.
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
@@ -214,8 +245,8 @@ export default function TeamSettingsPage() {
                 />
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsInviteDialogOpen(false)} disabled={isSubmittingInvite}>Cancel</Button>
-                  <Button type="submit" disabled={isSubmittingInvite}>
-                    {isSubmittingInvite ? "Sending..." : <><Send className="mr-2 h-4 w-4" />Send Invitation</>}
+                  <Button type="submit" disabled={isSubmittingInvite || !currentUser}>
+                    {isSubmittingInvite ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : <><Send className="mr-2 h-4 w-4" />Send Invitation</>}
                   </Button>
                 </DialogFooter>
               </form>
@@ -227,7 +258,7 @@ export default function TeamSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Current Team ({teamMembers.length})</CardTitle>
-          <CardDescription>Users who have accepted their invitations and are part of your team.</CardDescription>
+          <CardDescription>Users who have accepted their invitations and are part of your team. (Mock Data)</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -255,8 +286,8 @@ export default function TeamSettingsPage() {
                   <TableCell>{member.email}</TableCell>
                   <TableCell>
                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        member.role === 'Owner' ? 'bg-primary/20 text-primary' : // Adjusted for better theme contrast
-                        member.role === 'Admin' ? 'bg-accent/20 text-accent-foreground' : // Using accent for Admin
+                        member.role === 'Owner' ? 'bg-primary/20 text-primary' : 
+                        member.role === 'Admin' ? 'bg-accent/20 text-accent-foreground' : 
                         member.role === 'Editor' ? 'bg-secondary/20 text-secondary-foreground' :
                         'bg-muted text-muted-foreground'
                       }`}>
@@ -265,7 +296,7 @@ export default function TeamSettingsPage() {
                   </TableCell>
                   <TableCell>{member.joinedDate ? new Date(member.joinedDate).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell className="text-right">
-                    {member.role !== "Owner" && (
+                    {member.role !== "Owner" && currentUser?.uid === initialMockTeamMembers.find(m => m.role === "Owner")?.id && ( // Mock Owner check
                       <>
                         <Button variant="ghost" size="icon" onClick={() => toast({title: "Edit Role (TODO)", description:"This feature is not yet implemented."})} title="Edit role (TODO)">
                           <MoreHorizontal className="h-4 w-4" />
@@ -293,7 +324,7 @@ export default function TeamSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Pending Invitations ({pendingInvites.filter(inv => inv.status === 'pending').length})</CardTitle>
-          <CardDescription>These users have been invited but haven't joined yet. In a real app, this relies on a Cloud Function like `/acceptInvite`.</CardDescription>
+          <CardDescription>These users have been invited but haven't joined yet. (Mock Data)</CardDescription>
         </CardHeader>
         <CardContent>
            <Table>
