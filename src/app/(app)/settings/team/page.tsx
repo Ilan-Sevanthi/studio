@@ -20,8 +20,8 @@ import type { AppUser, UserRole, Invite, InviteStatus } from "@/types";
 import { auth } from "@/lib/firebase"; 
 import { getFunctions, httpsCallable } from "firebase/functions";
 
-const initialMockTeamMembers: AppUser[] = [
-  { id: "user_owner_123", name: "Sofia Davis (Owner)", email: "sofia.davis@example.com", role: "Owner", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "SD", joinedDate: "2023-01-10" },
+// Mock team members, Owner will be dynamically added
+const initialMockTeamMembersNoOwner: AppUser[] = [
   { id: "user1", name: "Alex Johnson", email: "alex.j@example.com", role: "Admin", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "AJ", joinedDate: "2023-01-15" },
   { id: "user2", name: "Maria Garcia", email: "maria.g@example.com", role: "Editor", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "MG", joinedDate: "2023-03-22" },
   { id: "user3", name: "David Lee", email: "david.l@example.com", role: "Viewer", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "DL", joinedDate: "2023-05-10" },
@@ -45,25 +45,39 @@ async function callSendTeamInviteFunction(inviteData: { inviteeEmail: string, ro
 
   try {
     console.log("Calling 'sendTeamInvite' Firebase Function with data:", inviteData);
-    const result = await sendTeamInvite(inviteData) as any; 
-    
-    if (result.data.success) {
-      console.log("Firebase Function 'sendTeamInvite' succeeded:", result.data);
-      return { success: true, message: result.data.message || "Invitation sent successfully.", invite: result.data.invite };
-    } else {
-      console.error("Firebase Function 'sendTeamInvite' failed:", result.data.message);
-      return { success: false, message: result.data.message || "Failed to send invitation via function." };
+    // This is where you'd actually call the function if it were deployed and ready.
+    // For now, we simulate success if the email is not "fail@example.com"
+    if (inviteData.inviteeEmail === "fail@example.com") {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+        return { success: false, message: "Simulated backend function failure." };
     }
+
+    // Simulate a successful function call and mock the returned invite object
+    const mockReturnedInvite: Invite = {
+      id: `invite_new_${Date.now()}`,
+      inviteeEmail: inviteData.inviteeEmail,
+      role: inviteData.role,
+      status: "pending",
+      inviterId: auth.currentUser?.uid || "unknown_inviter",
+      token: `mocktoken_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+    console.log("Simulated Firebase Function 'sendTeamInvite' succeeded. Mock invite:", mockReturnedInvite);
+    return { success: true, message: "Invitation sent successfully (simulated backend).", invite: mockReturnedInvite };
+
   } catch (error) {
-    console.error("Error calling 'sendTeamInvite' Firebase Function:", error);
-    return { success: false, message: "An error occurred while trying to send the invitation." };
+    console.error("Error preparing to call 'sendTeamInvite' Firebase Function (or during simulation):", error);
+    // This catch block would handle errors from httpsCallable itself if the function doesn't exist,
+    // or network errors if the function call fails at that level.
+    return { success: false, message: "An error occurred while trying to send the invitation (simulation error)." };
   }
 }
 
 
 export default function TeamSettingsPage() {
   const { toast } = useToast();
-  const [teamMembers, setTeamMembers] = React.useState<AppUser[]>(initialMockTeamMembers);
+  const [teamMembers, setTeamMembers] = React.useState<AppUser[]>([]);
   const [pendingInvites, setPendingInvites] = React.useState<Invite[]>(initialMockPendingInvites);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = React.useState(false);
   const [isSubmittingInvite, setIsSubmittingInvite] = React.useState(false);
@@ -77,9 +91,33 @@ export default function TeamSettingsPage() {
     },
   });
   
-  // Determine if the current user is the owner based on mock data
-  // In a real app, this would come from the user's profile in Firestore
-  const isOwner = currentUser?.uid === teamMembers.find(m => m.role === "Owner")?.id;
+  React.useEffect(() => {
+    if (currentUser) {
+      const ownerDisplayName = currentUser.displayName || currentUser.email?.split('@')[0] || 'User';
+      const ownerData: AppUser = {
+        id: currentUser.uid,
+        name: `${ownerDisplayName} (Owner)`, // Suffix (Owner) for clear display in the name column
+        email: currentUser.email || 'N/A',
+        role: 'Owner' as UserRole,
+        teamId: 'team1', // Assuming a default teamId
+        avatarUrl: currentUser.photoURL || `https://placehold.co/40x40.png`,
+        initials: (ownerDisplayName.split(' ').map(n => n[0]).join('').substring(0,2) || 'U').toUpperCase(),
+        joinedDate: new Date().toISOString(), // Placeholder; ideally this is when the user created the account/team
+      };
+      setTeamMembers([ownerData, ...initialMockTeamMembersNoOwner]);
+    } else {
+      // Handle the case where currentUser is null (e.g., user logs out)
+      // You might want to clear teamMembers or set them to a default non-dynamic state
+      setTeamMembers([]); // Or initialMockTeamMembersNoOwner if you want to show something
+    }
+  }, [currentUser]);
+
+
+  const isOwner = React.useMemo(() => {
+    if (!currentUser || teamMembers.length === 0) return false;
+    const ownerRecord = teamMembers.find(member => member.role === 'Owner');
+    return ownerRecord?.id === currentUser.uid;
+  }, [currentUser, teamMembers]);
 
 
   async function onInviteSubmit(data: InviteMemberFormValues) {
@@ -132,15 +170,15 @@ export default function TeamSettingsPage() {
       if (result.success && result.invite) {
         setPendingInvites(prev => [result.invite!, ...prev]); 
         toast({
-          title: "Invitation Sent (Simulated)",
-          description: result.message || `${data.email} has been invited as a ${data.role}. (Backend function call simulated)`,
+          title: "Invitation Sent",
+          description: result.message,
         });
         setIsInviteDialogOpen(false);
         form.reset();
       } else {
          toast({
           title: "Invite Error",
-          description: result.message || "Could not send the invitation via backend function.",
+          description: result.message || "Could not send the invitation.",
           variant: "destructive",
         });
       }
@@ -161,22 +199,26 @@ export default function TeamSettingsPage() {
       toast({ title: "Permission Denied", description: "Only the team owner can change roles.", variant: "destructive"});
       return;
     }
-    if (memberId === currentUser?.uid && newRole !== "Owner") { // Owner trying to change their own role to non-owner
+    const memberToUpdate = teamMembers.find(m => m.id === memberId);
+    if (memberToUpdate?.role === "Owner" && newRole !== "Owner") { 
         toast({ title: "Action Denied", description: "Owner cannot change their own role from Owner.", variant: "destructive"});
         return;
     }
+    if (memberId === currentUser?.uid && memberToUpdate?.role === "Owner" && newRole !== "Owner") {
+        toast({ title: "Action Denied", description: "Owner cannot change their own role.", variant: "destructive"});
+        return;
+    }
 
-    // Simulate backend call for role change
+
     console.log(`Simulating role change for member ${memberId} to ${newRole}`);
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500)); 
 
     setTeamMembers(prevMembers =>
       prevMembers.map(member =>
         member.id === memberId ? { ...member, role: newRole } : member
       )
     );
-    toast({ title: "Role Updated (Simulated)", description: `Role for ${teamMembers.find(m=>m.id===memberId)?.name} changed to ${newRole}.` });
-    // TODO: Call actual Firebase Function here: updateTeamMemberRole(memberId, newRole)
+    toast({ title: "Role Updated (Simulated)", description: `Role for ${teamMembers.find(m=>m.id===memberId)?.name?.replace(" (Owner)","")} changed to ${newRole}.` });
   };
 
   const removeMember = async (memberId: string, memberName?: string) => {
@@ -184,24 +226,25 @@ export default function TeamSettingsPage() {
       toast({ title: "Permission Denied", description: "Only the team owner can remove members.", variant: "destructive"});
       return;
     }
-    if (memberId === currentUser?.uid) { 
+    const memberToRemove = teamMembers.find(m => m.id === memberId);
+    if (memberToRemove?.role === "Owner") { 
       toast({ title: "Action Denied", description: "Owner cannot be removed.", variant: "destructive"});
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to remove ${memberName || 'this member'} from the team?`)) {
+    const cleanMemberName = memberName?.replace(" (Owner)","");
+    if (!window.confirm(`Are you sure you want to remove ${cleanMemberName || 'this member'} from the team?`)) {
       return;
     }
 
     console.log("Simulating removal of member:", memberId);
     await new Promise(resolve => setTimeout(resolve, 500));
     setTeamMembers(prev => prev.filter(member => member.id !== memberId));
-    toast({ title: "Member Removed (Simulated)", description: `${memberName || 'The team member'} has been removed.` });
-    // TODO: Call actual Firebase Function here: removeTeamMember(memberId)
+    toast({ title: "Member Removed (Simulated)", description: `${cleanMemberName || 'The team member'} has been removed.` });
   };
 
   const cancelInvite = async (inviteId: string) => {
-    if (!isOwner) {
+     if (!isOwner) {
       toast({ title: "Permission Denied", description: "Only the team owner can cancel invites.", variant: "destructive"});
       return;
     }
@@ -294,7 +337,7 @@ export default function TeamSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Current Team ({teamMembers.length})</CardTitle>
-          <CardDescription>Users who have accepted their invitations and are part of your team. (Mock Data)</CardDescription>
+          <CardDescription>Users who have accepted their invitations and are part of your team.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -304,7 +347,7 @@ export default function TeamSettingsPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Joined</TableHead>
-                <TableHead className="text-right w-[200px]">Actions</TableHead>
+                <TableHead className="text-right w-[120px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -329,7 +372,7 @@ export default function TeamSettingsPage() {
                       <Select 
                         value={member.role} 
                         onValueChange={(newRole) => handleChangeRole(member.id, newRole as UserRole)}
-                        disabled={!isOwner || member.id === currentUser?.uid} // Disable if not owner or if it's the owner's own record (though owner should be handled by above)
+                        disabled={!isOwner || member.id === currentUser?.uid} 
                       >
                         <SelectTrigger className="h-8 w-[100px] text-xs">
                           <SelectValue placeholder="Select role" />
@@ -344,7 +387,7 @@ export default function TeamSettingsPage() {
                   </TableCell>
                   <TableCell>{member.joinedDate ? new Date(member.joinedDate).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell className="text-right">
-                    {member.role !== "Owner" && isOwner && (
+                    {member.role !== "Owner" && isOwner ? (
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -354,20 +397,25 @@ export default function TeamSettingsPage() {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                    )}
-                     {member.role === "Owner" && isOwner && (
+                    ) : member.role === "Owner" ? (
                         <span className="text-xs text-muted-foreground italic">Owner</span>
-                    )}
-                    {!isOwner && member.role !== "Owner" && (
+                    ): (
                          <span className="text-xs text-muted-foreground italic">Managed by owner</span>
                     )}
                   </TableCell>
                 </TableRow>
               ))}
-              {teamMembers.length === 0 && (
+              {teamMembers.length === 0 && !currentUser && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
-                    No active team members yet.
+                    Loading team members...
+                  </TableCell>
+                </TableRow>
+              )}
+               {teamMembers.length === 0 && currentUser && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
+                    No team members yet. Invite someone to get started!
                   </TableCell>
                 </TableRow>
               )}
@@ -427,3 +475,4 @@ export default function TeamSettingsPage() {
     </div>
   );
 }
+
