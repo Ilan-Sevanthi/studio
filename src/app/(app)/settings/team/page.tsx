@@ -10,18 +10,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { MoreHorizontal, PlusCircle, Trash2, UserPlus, Send, RefreshCw, XCircle, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Trash2, UserPlus, Send, RefreshCw, XCircle, Loader2, Edit3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import type { AppUser, UserRole, Invite, InviteStatus } from "@/types";
-import { auth } from "@/lib/firebase"; // Import auth
-import { getFunctions, httpsCallable } from "firebase/functions"; // Import for Firebase Functions
-
-// Mock data - replace with actual data fetching and state management
-// const mockCurrentUserId = "user_owner_123"; // To be replaced by auth.currentUser.uid
+import { auth } from "@/lib/firebase"; 
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 const initialMockTeamMembers: AppUser[] = [
   { id: "user_owner_123", name: "Sofia Davis (Owner)", email: "sofia.davis@example.com", role: "Owner", teamId: "team1", avatarUrl: "https://placehold.co/40x40.png", initials: "SD", joinedDate: "2023-01-10" },
@@ -31,9 +28,8 @@ const initialMockTeamMembers: AppUser[] = [
 ];
 
 const initialMockPendingInvites: Invite[] = [
-  // Update mock invites to not include formId, role is team role
-  { id: "invite1", inviteeEmail: "new.user@example.com", role: "Editor", status: "pending", teamId: "team1", inviterId: "user_owner_123", token: "mocktoken1", createdAt: new Date().toISOString() },
-  { id: "invite2", inviteeEmail: "another.dev@example.com", role: "Viewer", status: "pending", teamId: "team1", inviterId: "user_owner_123", token: "mocktoken2", createdAt: new Date(Date.now() - 86400000 * 2).toISOString() }, // 2 days ago
+  { id: "invite1", inviteeEmail: "new.user@example.com", role: "Editor", status: "pending", inviterId: "user_owner_123", token: "mocktoken1", createdAt: new Date().toISOString() },
+  { id: "invite2", inviteeEmail: "another.dev@example.com", role: "Viewer", status: "pending", inviterId: "user_owner_123", token: "mocktoken2", createdAt: new Date(Date.now() - 86400000 * 2).toISOString() },
 ];
 
 const inviteMemberSchema = z.object({
@@ -43,19 +39,16 @@ const inviteMemberSchema = z.object({
 
 type InviteMemberFormValues = z.infer<typeof inviteMemberSchema>;
 
-// Placeholder/Updated function for sending invite
-// This will eventually call the 'sendTeamInvite' Firebase Function
 async function callSendTeamInviteFunction(inviteData: { inviteeEmail: string, role: Exclude<UserRole, "Owner"> }): Promise<{success: boolean, message: string, invite?: Invite}> {
-  const functions = getFunctions(auth.app); // Get functions instance
-  const sendTeamInvite = httpsCallable(functions, 'sendTeamInvite'); // Function name
+  const functions = getFunctions(auth.app); 
+  const sendTeamInvite = httpsCallable(functions, 'sendTeamInvite');
 
   try {
     console.log("Calling 'sendTeamInvite' Firebase Function with data:", inviteData);
-    const result = await sendTeamInvite(inviteData) as any; // Cast 'any' for now
+    const result = await sendTeamInvite(inviteData) as any; 
     
     if (result.data.success) {
       console.log("Firebase Function 'sendTeamInvite' succeeded:", result.data);
-      // The actual invite object might be returned by the function
       return { success: true, message: result.data.message || "Invitation sent successfully.", invite: result.data.invite };
     } else {
       console.error("Firebase Function 'sendTeamInvite' failed:", result.data.message);
@@ -83,6 +76,11 @@ export default function TeamSettingsPage() {
       role: "Viewer",
     },
   });
+  
+  // Determine if the current user is the owner based on mock data
+  // In a real app, this would come from the user's profile in Firestore
+  const isOwner = currentUser?.uid === teamMembers.find(m => m.role === "Owner")?.id;
+
 
   async function onInviteSubmit(data: InviteMemberFormValues) {
     setIsSubmittingInvite(true);
@@ -93,11 +91,15 @@ export default function TeamSettingsPage() {
       return;
     }
 
-    // Note: Team limit check currently uses mock data.
-    // In a real app, fetch actual teamMembers and pendingInvites counts from Firestore.
-    const currentMemberCount = initialMockTeamMembers.filter(m => m.role !== "Owner").length;
-    const currentPendingInviteCount = initialMockPendingInvites.filter(inv => inv.status === "pending").length;
-    const totalNonOwnerInvitedOrMember = currentMemberCount + currentPendingInviteCount;
+    if (!isOwner) {
+        toast({ title: "Permission Denied", description: "Only the team owner can invite new members.", variant: "destructive"});
+        setIsSubmittingInvite(false);
+        return;
+    }
+
+    const currentNonOwnerMemberCount = teamMembers.filter(m => m.role !== "Owner").length;
+    const currentPendingInviteCount = pendingInvites.filter(inv => inv.status === "pending").length;
+    const totalNonOwnerInvitedOrMember = currentNonOwnerMemberCount + currentPendingInviteCount;
 
     if (totalNonOwnerInvitedOrMember >= 3) {
         toast({
@@ -110,8 +112,8 @@ export default function TeamSettingsPage() {
         return;
     }
         
-    const emailExistsAsMember = initialMockTeamMembers.some(member => member.email === data.email);
-    const emailHasPendingInvite = initialMockPendingInvites.some(invite => invite.inviteeEmail === data.email && invite.status === "pending");
+    const emailExistsAsMember = teamMembers.some(member => member.email === data.email);
+    const emailHasPendingInvite = pendingInvites.some(invite => invite.inviteeEmail === data.email && invite.status === "pending");
 
     if (emailExistsAsMember) {
       toast({ title: "User Exists", description: `${data.email} is already a team member.`, variant: "destructive" });
@@ -125,14 +127,12 @@ export default function TeamSettingsPage() {
     }
 
     try {
-      // Call the new function that will interact with Firebase Functions
       const result = await callSendTeamInviteFunction({ inviteeEmail: data.email, role: data.role as Exclude<UserRole, "Owner"> });
       
       if (result.success && result.invite) {
-        // Add to mock pending invites for now. In a real app, this would update from a Firestore listener.
         setPendingInvites(prev => [result.invite!, ...prev]); 
         toast({
-          title: "Invitation Sent (Simulation)",
+          title: "Invitation Sent (Simulated)",
           description: result.message || `${data.email} has been invited as a ${data.role}. (Backend function call simulated)`,
         });
         setIsInviteDialogOpen(false);
@@ -144,7 +144,7 @@ export default function TeamSettingsPage() {
           variant: "destructive",
         });
       }
-    } catch (error) { // Catch errors from callSendTeamInviteFunction itself
+    } catch (error) {
       console.error("Error during invite submission process:", error);
       toast({
         title: "Invite Error",
@@ -156,33 +156,70 @@ export default function TeamSettingsPage() {
     }
   }
   
-  const removeMember = async (memberId: string) => {
-    if (currentUser && memberId === currentUser.uid) { // Check against actual current user
+  const handleChangeRole = async (memberId: string, newRole: UserRole) => {
+    if (!isOwner) {
+      toast({ title: "Permission Denied", description: "Only the team owner can change roles.", variant: "destructive"});
+      return;
+    }
+    if (memberId === currentUser?.uid && newRole !== "Owner") { // Owner trying to change their own role to non-owner
+        toast({ title: "Action Denied", description: "Owner cannot change their own role from Owner.", variant: "destructive"});
+        return;
+    }
+
+    // Simulate backend call for role change
+    console.log(`Simulating role change for member ${memberId} to ${newRole}`);
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+
+    setTeamMembers(prevMembers =>
+      prevMembers.map(member =>
+        member.id === memberId ? { ...member, role: newRole } : member
+      )
+    );
+    toast({ title: "Role Updated (Simulated)", description: `Role for ${teamMembers.find(m=>m.id===memberId)?.name} changed to ${newRole}.` });
+    // TODO: Call actual Firebase Function here: updateTeamMemberRole(memberId, newRole)
+  };
+
+  const removeMember = async (memberId: string, memberName?: string) => {
+    if (!isOwner) {
+      toast({ title: "Permission Denied", description: "Only the team owner can remove members.", variant: "destructive"});
+      return;
+    }
+    if (memberId === currentUser?.uid) { 
       toast({ title: "Action Denied", description: "Owner cannot be removed.", variant: "destructive"});
       return;
     }
-    // Simulate backend call to remove member
+
+    if (!window.confirm(`Are you sure you want to remove ${memberName || 'this member'} from the team?`)) {
+      return;
+    }
+
     console.log("Simulating removal of member:", memberId);
     await new Promise(resolve => setTimeout(resolve, 500));
     setTeamMembers(prev => prev.filter(member => member.id !== memberId));
-    toast({ title: "Member Removed", description: "The team member has been removed (simulated)." });
+    toast({ title: "Member Removed (Simulated)", description: `${memberName || 'The team member'} has been removed.` });
+    // TODO: Call actual Firebase Function here: removeTeamMember(memberId)
   };
 
   const cancelInvite = async (inviteId: string) => {
-    // Simulate backend call to cancel invite
+    if (!isOwner) {
+      toast({ title: "Permission Denied", description: "Only the team owner can cancel invites.", variant: "destructive"});
+      return;
+    }
     console.log("Simulating cancellation of invite:", inviteId);
     await new Promise(resolve => setTimeout(resolve, 500));
     setPendingInvites(prev => prev.filter(invite => invite.id !== inviteId));
-    toast({ title: "Invitation Cancelled", description: "The pending invitation has been cancelled (simulated)." });
+    toast({ title: "Invitation Cancelled (Simulated)", description: "The pending invitation has been cancelled." });
   };
 
   const resendInvite = async (inviteId: string) => {
+     if (!isOwner) {
+      toast({ title: "Permission Denied", description: "Only the team owner can resend invites.", variant: "destructive"});
+      return;
+    }
     const invite = pendingInvites.find(inv => inv.id === inviteId);
-    // Simulate backend call to resend invite
     console.log("Simulating resend of invite:", inviteId);
-    // TODO: This would ideally call a 'resendTeamInvite' Firebase Function
     await new Promise(resolve => setTimeout(resolve, 500));
-    toast({ title: "Invitation Resent", description: `Invitation to ${invite?.inviteeEmail} has been resent (simulated).` });
+    toast({ title: "Invitation Resent (Simulated)", description: `Invitation to ${invite?.inviteeEmail} has been resent.` });
   }
 
   return (
@@ -194,8 +231,7 @@ export default function TeamSettingsPage() {
         </div>
         <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
           <DialogTrigger asChild>
-            <Button disabled={!currentUser || teamMembers.find(m=>m.id === currentUser?.uid)?.role !== "Owner"}> 
-              {/* Disable if not owner based on mock data for now */}
+            <Button disabled={!isOwner}> 
               <UserPlus className="mr-2 h-4 w-4" /> Invite Member
             </Button>
           </DialogTrigger>
@@ -268,7 +304,7 @@ export default function TeamSettingsPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Joined</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right w-[200px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -284,27 +320,46 @@ export default function TeamSettingsPage() {
                     </div>
                   </TableCell>
                   <TableCell>{member.email}</TableCell>
-                  <TableCell>
-                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        member.role === 'Owner' ? 'bg-primary/20 text-primary' : 
-                        member.role === 'Admin' ? 'bg-accent/20 text-accent-foreground' : 
-                        member.role === 'Editor' ? 'bg-secondary/20 text-secondary-foreground' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {member.role}
-                      </span>
+                   <TableCell>
+                    {member.role === "Owner" ? (
+                         <span className={`px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary`}>
+                            {member.role}
+                        </span>
+                    ) : (
+                      <Select 
+                        value={member.role} 
+                        onValueChange={(newRole) => handleChangeRole(member.id, newRole as UserRole)}
+                        disabled={!isOwner || member.id === currentUser?.uid} // Disable if not owner or if it's the owner's own record (though owner should be handled by above)
+                      >
+                        <SelectTrigger className="h-8 w-[100px] text-xs">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Admin">Admin</SelectItem>
+                          <SelectItem value="Editor">Editor</SelectItem>
+                          <SelectItem value="Viewer">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </TableCell>
                   <TableCell>{member.joinedDate ? new Date(member.joinedDate).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell className="text-right">
-                    {member.role !== "Owner" && currentUser?.uid === initialMockTeamMembers.find(m => m.role === "Owner")?.id && ( // Mock Owner check
-                      <>
-                        <Button variant="ghost" size="icon" onClick={() => toast({title: "Edit Role (TODO)", description:"This feature is not yet implemented."})} title="Edit role (TODO)">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => removeMember(member.id)} title="Remove member" className="text-destructive hover:text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
+                    {member.role !== "Owner" && isOwner && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => removeMember(member.id, member.name)} 
+                        title="Remove member" 
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                     {member.role === "Owner" && isOwner && (
+                        <span className="text-xs text-muted-foreground italic">Owner</span>
+                    )}
+                    {!isOwner && member.role !== "Owner" && (
+                         <span className="text-xs text-muted-foreground italic">Managed by owner</span>
                     )}
                   </TableCell>
                 </TableRow>
@@ -349,10 +404,10 @@ export default function TeamSettingsPage() {
                     </span>
                   </TableCell>
                   <TableCell className="text-right space-x-1">
-                     <Button variant="ghost" size="sm" onClick={() => resendInvite(invite.id)} title="Resend invitation">
+                     <Button variant="ghost" size="sm" onClick={() => resendInvite(invite.id)} title="Resend invitation" disabled={!isOwner}>
                         <RefreshCw className="mr-1 h-3 w-3" /> Resend
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => cancelInvite(invite.id)} title="Cancel invitation" className="text-destructive hover:text-destructive">
+                    <Button variant="ghost" size="sm" onClick={() => cancelInvite(invite.id)} title="Cancel invitation" className="text-destructive hover:text-destructive" disabled={!isOwner}>
                         <XCircle className="mr-1 h-3 w-3" /> Cancel
                     </Button>
                   </TableCell>
