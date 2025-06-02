@@ -321,8 +321,14 @@ export default function FormsPage() {
               </Button>
             </div>
             {shareLink && (
-              <div ref={qrCodeRef} className="p-4 border rounded-md bg-muted/50 inline-block">
-                <QRCodeCanvas value={shareLink} size={192} bgColor="hsl(var(--muted) / 0.5)" fgColor="hsl(var(--foreground))" level="M" imageSettings={{excavate: false}}/>
+              <div ref={qrCodeRef} className="p-4 border rounded-md bg-white inline-block">
+                <QRCodeCanvas 
+                  value={shareLink} 
+                  size={192} 
+                  bgColor="#FFFFFF" 
+                  fgColor="#000000" 
+                  level="M" 
+                />
               </div>
             )}
             {shareLink && (
