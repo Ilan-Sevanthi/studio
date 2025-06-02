@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Eye, Edit2, Trash2, Share2, BarChartHorizontalBig, FileTextIcon as PageBreakIcon, Loader2, Copy, Star } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Eye, Edit2, Trash2, Share2, BarChartHorizontalBig, FileTextIcon as PageBreakIcon, Loader2, Copy, Star, QrCode } from "lucide-react";
 import Link from "next/link";
 import type { FormSchema, QuestionSchema, FormFieldOption, FormFieldType } from "@/types";
 import { db, auth } from "@/lib/firebase";
@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { QRCodeCanvas } from 'qrcode.react';
 
 
 // Add a status field to FormSchema for UI display, if not directly in DB
@@ -284,18 +285,27 @@ export default function FormsPage() {
 
       {/* Share Form Dialog */}
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Share Form: {selectedFormTitleForShare}</DialogTitle>
             <DialogDescription>
-              Copy the link below to share your form with others.
+              Copy the link or scan the QR code to share your form.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center space-x-2 mt-4">
-            <Input value={shareLink} readOnly className="flex-1" />
-            <Button onClick={copyToClipboard} size="icon">
-              <Copy className="h-4 w-4" />
-            </Button>
+          <div className="flex flex-col gap-4 mt-4 items-center">
+            <div className="flex items-center space-x-2 w-full">
+              <Input value={shareLink} readOnly className="flex-1" />
+              <Button onClick={copyToClipboard} size="icon" variant="outline">
+                <Copy className="h-4 w-4" />
+                <span className="sr-only">Copy link</span>
+              </Button>
+            </div>
+            {shareLink && (
+              <div className="p-4 border rounded-md bg-muted/50 inline-block">
+                <QRCodeCanvas value={shareLink} size={160} bgColor="hsl(var(--muted) / 0.5)" fgColor="hsl(var(--foreground))" level="M" />
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">Anyone with the link or QR code can respond.</p>
           </div>
           <CardFooter className="mt-4 p-0 justify-end">
              <Button variant="outline" onClick={() => setIsShareDialogOpen(false)}>Close</Button>
