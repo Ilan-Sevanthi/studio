@@ -42,7 +42,7 @@ const AppTitle = () => {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider defaultOpen>
-      <Sidebar>
+      <Sidebar collapsible="icon"> {/* Added collapsible="icon" */}
         <SidebarHeader className="p-4 border-b border-sidebar-border">
           <Link href="/dashboard" className="flex items-center space-x-2">
             <Sparkles className="h-7 w-7 text-sidebar-primary" />
