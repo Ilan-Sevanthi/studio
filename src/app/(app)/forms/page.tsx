@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Eye, Edit2, Trash2, Share2, BarChartHorizontalBig, FileTextIcon as PageBreakIcon, Loader2, Copy, Star, QrCode } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Eye, Edit2, Trash2, Share2, BarChartHorizontalBig, FileTextIcon as PageBreakIcon, Loader2, Copy, Star, QrCode, Download } from "lucide-react";
 import Link from "next/link";
 import type { FormSchema, QuestionSchema, FormFieldOption, FormFieldType } from "@/types";
 import { db, auth } from "@/lib/firebase";
@@ -39,6 +39,8 @@ export default function FormsPage() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [shareLink, setShareLink] = useState("");
   const [selectedFormTitleForShare, setSelectedFormTitleForShare] = useState("");
+  const qrCodeRef = useRef<HTMLDivElement>(null);
+
 
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [selectedFormForPreview, setSelectedFormForPreview] = useState<DisplayFormSchema | null>(null);
@@ -138,8 +140,6 @@ export default function FormsPage() {
       await deleteDoc(formDocRef);
       toast({ title: "Form Deleted", description: `Form "${form.title}" has been successfully deleted.` });
       console.log(`Form [${formId}] successfully deleted from Firestore.`);
-      // The onSnapshot listener should automatically update the UI by removing the form.
-      // No need to manually filter forms state here if onSnapshot is working correctly.
     } catch (error) {
       console.error(`Error deleting form [${formId}] from Firestore:`, error);
       toast({ title: "Delete Error", description: "Could not delete the form. Check console for details.", variant: "destructive" });
@@ -160,6 +160,26 @@ export default function FormsPage() {
     }, (err) => {
       toast({ title: "Copy Failed", description: "Could not copy the link.", variant: "destructive" });
     });
+  };
+
+  const handleDownloadQR = () => {
+    if (qrCodeRef.current) {
+      const canvas = qrCodeRef.current.querySelector('canvas');
+      if (canvas) {
+        const pngUrl = canvas
+          .toDataURL("image/png")
+          .replace("image/png", "image/octet-stream"); // Prompt download
+        let downloadLink = document.createElement("a");
+        downloadLink.href = pngUrl;
+        downloadLink.download = `${selectedFormTitleForShare.replace(/\s+/g, '-').toLowerCase()}-qr-code.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        toast({ title: "QR Code Downloading", description: "Your QR code image will be downloaded." });
+      } else {
+        toast({ title: "Download Error", description: "Could not find QR code canvas.", variant: "destructive" });
+      }
+    }
   };
 
   const handlePreviewForm = (formToPreview: DisplayFormSchema) => {
@@ -289,21 +309,26 @@ export default function FormsPage() {
           <DialogHeader>
             <DialogTitle>Share Form: {selectedFormTitleForShare}</DialogTitle>
             <DialogDescription>
-              Copy the link or scan the QR code to share your form.
+              Copy the link or scan/download the QR code to share your form.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 mt-4 items-center">
             <div className="flex items-center space-x-2 w-full">
               <Input value={shareLink} readOnly className="flex-1" />
-              <Button onClick={copyToClipboard} size="icon" variant="outline">
+              <Button onClick={copyToClipboard} size="icon" variant="outline" title="Copy link">
                 <Copy className="h-4 w-4" />
                 <span className="sr-only">Copy link</span>
               </Button>
             </div>
             {shareLink && (
-              <div className="p-4 border rounded-md bg-muted/50 inline-block">
-                <QRCodeCanvas value={shareLink} size={160} bgColor="hsl(var(--muted) / 0.5)" fgColor="hsl(var(--foreground))" level="M" />
+              <div ref={qrCodeRef} className="p-4 border rounded-md bg-muted/50 inline-block">
+                <QRCodeCanvas value={shareLink} size={192} bgColor="hsl(var(--muted) / 0.5)" fgColor="hsl(var(--foreground))" level="M" imageSettings={{excavate: false}}/>
               </div>
+            )}
+            {shareLink && (
+                 <Button onClick={handleDownloadQR} variant="outline" className="w-full">
+                    <Download className="mr-2 h-4 w-4" /> Download QR Code
+                 </Button>
             )}
             <p className="text-xs text-muted-foreground">Anyone with the link or QR code can respond.</p>
           </div>
