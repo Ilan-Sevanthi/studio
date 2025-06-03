@@ -60,11 +60,16 @@ export function UserNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8" data-ai-hint="user avatar">
+        <Button variant="ghost" className="relative flex items-center space-x-2 rounded-full px-2 py-1 h-9">
+          <Avatar className="h-7 w-7" data-ai-hint="user avatar small">
             <AvatarImage src={avatarSrc} alt={currentUserName || "User avatar"} />
             <AvatarFallback>{displayNameFallback}</AvatarFallback>
           </Avatar>
+          {currentUserName && (
+            <span className="text-sm font-medium text-foreground truncate max-w-[100px] hidden sm:inline">
+              {currentUserName}
+            </span>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -117,3 +122,4 @@ export function UserNav() {
     </DropdownMenu>
   )
 }
+
